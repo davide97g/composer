@@ -1,4 +1,5 @@
 import { PromptDialog } from "@/components/PromptDialog";
+import { GhostWriterPromptDialog } from "@/components/GhostWriterPromptDialog";
 import { GenerationsTab } from "@/components/GenerationsTab";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
   getActiveTheme,
   getWebsiteTitle,
   updateWebsiteCustomPrompt,
+  updateWebsiteCustomGhostWriterPrompt,
   updateWebsiteNavigationHistory,
   updateWebsiteTitle,
 } from "@/lib/storage";
@@ -76,6 +78,7 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
     new Set()
   );
   const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [ghostWriterPromptDialogOpen, setGhostWriterPromptDialogOpen] = useState(false);
   const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null);
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [titleValues, setTitleValues] = useState<Map<string, string>>(
@@ -88,7 +91,7 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
   const handleWebsiteClick = async (website: Website) => {
     try {
       const theme = getActiveTheme();
-      await startAgent(website.url, theme, website.customPrompt);
+      await startAgent(website.url, theme, website.customPrompt, website.customGhostWriterPrompt);
       onWebsiteClick(website.url);
       // Refresh navigation history after starting agent
       setTimeout(() => {
@@ -363,9 +366,17 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
                           {website.customPrompt && (
                             <span
                               className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded shrink-0"
-                              title="Custom prompt"
+                              title="Custom filler prompt"
                             >
                               Custom
+                            </span>
+                          )}
+                          {website.customGhostWriterPrompt && (
+                            <span
+                              className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 px-1.5 py-0.5 rounded shrink-0"
+                              title="Custom ghost writer prompt"
+                            >
+                              GW
                             </span>
                           )}
                         </>
@@ -388,10 +399,24 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
                         setSelectedWebsite(website);
                         setPromptDialogOpen(true);
                       }}
-                      aria-label="Edit prompt"
-                      title="Edit custom prompt"
+                      aria-label="Edit filler prompt"
+                      title="Edit custom filler prompt"
                     >
                       <span className="text-sm">✎</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedWebsite(website);
+                        setGhostWriterPromptDialogOpen(true);
+                      }}
+                      aria-label="Edit ghost writer prompt"
+                      title="Edit custom ghost writer prompt"
+                    >
+                      <span className="text-sm">👻</span>
                     </Button>
                     <Button
                       variant="ghost"
@@ -485,6 +510,16 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
         websites={websites}
         onSave={(url, prompt) => {
           updateWebsiteCustomPrompt(url, prompt);
+          onWebsiteClick(url);
+        }}
+      />
+      <GhostWriterPromptDialog
+        open={ghostWriterPromptDialogOpen}
+        onOpenChange={setGhostWriterPromptDialogOpen}
+        website={selectedWebsite}
+        websites={websites}
+        onSave={(url, prompt) => {
+          updateWebsiteCustomGhostWriterPrompt(url, prompt);
           onWebsiteClick(url);
         }}
       />

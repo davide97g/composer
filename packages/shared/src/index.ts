@@ -35,6 +35,7 @@ export interface Website {
   createdAt: number;
   navigationHistory: string[];
   customPrompt?: string;
+  customGhostWriterPrompt?: string;
   generations?: Generation[];
 }
 
@@ -95,10 +96,15 @@ export interface FillerSettings {
   timeout: number;
 }
 
+export interface GhostWriterSettings {
+  prompt: string;
+}
+
 export interface Settings {
   aiModel: AIModelSettings;
   scraper: ScraperSettings;
   filler: FillerSettings;
+  ghostWriter: GhostWriterSettings;
 }
 
 /**
@@ -139,6 +145,21 @@ Return your response as a JSON object where keys are the field selectors and val
 
 Important: Return ONLY valid JSON, no markdown, no explanations, just the JSON object.`,
     timeout: 30000,
+  },
+  ghostWriter: {
+    prompt: `You are helping a user fill out a form field. Based on the context provided, generate a single, appropriate VALUE (not a hint text, but an actual example value) that matches the theme: {theme}.
+
+Generate a realistic EXAMPLE VALUE (not placeholder text) that:
+- Is theme-specific and matches the theme: {theme}
+- Is appropriate for the field type
+- Is contextually relevant based on the label, placeholder, and form context
+- Is a concrete example value (e.g., for email with theme "Star Wars Hero": "luke.skywalker@rebelalliance.com", for name: "Luke Skywalker")
+- For text fields: provide actual names, addresses, or values matching the theme
+- For email fields: provide actual email addresses matching the theme
+- For date fields: provide actual dates in YYYY-MM-DD format
+- For number fields: provide actual numbers
+
+IMPORTANT: Return ONLY the example value, nothing else. No explanations, no JSON, no quotes, just the value string that the user would actually type.`,
   },
 };
 

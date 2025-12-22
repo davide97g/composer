@@ -43,7 +43,7 @@ const createExpressApp = () => {
 
   app.post("/api/start", async (req, res) => {
     try {
-      const { url, theme, customPrompt } = req.body;
+      const { url, theme, customPrompt, customGhostWriterPrompt } = req.body;
 
       if (!url || typeof url !== "string") {
         return res.status(400).json({ error: "Invalid URL" });
@@ -54,7 +54,7 @@ const createExpressApp = () => {
       }
 
       // Start browser session (non-blocking)
-      startBrowserSession(url, theme, customPrompt).catch((error) => {
+      startBrowserSession(url, theme, customPrompt, customGhostWriterPrompt).catch((error) => {
         console.error("Browser session error:", error);
       });
 

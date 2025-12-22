@@ -292,7 +292,7 @@ ${optimizedHtml}`;
   try {
     const settings = loadSettings();
     const model = settings.aiModel.model;
-    
+
     log("OPENAI_API", "Sending request to OpenAI API...", {
       promptLength: prompt.length,
       model,
@@ -397,6 +397,159 @@ ${optimizedHtml}`;
       `Failed to analyze forms with OpenAI: ${
         error instanceof Error ? error.message : String(error)
       }`
+    );
+  }
+};
+
+/**
+ * Generate a hint for a single input field based on context
+ */
+export const generateInputHint = async (
+  inputContext: {
+    selector: string;
+    type: string;
+    label?: string | null;
+    placeholder?: string | null;
+    name?: string | null;
+    id?: string | null;
+    required: boolean;
+  },
+  formContainerSelector: string | null,
+  pageUrl: string,
+  pageTitle: string,
+  theme: string,
+  customGhostWriterPrompt?: string
+): Promise<string> => {
+  const startTime = Date.now();
+  log("INPUT_HINT", "=== Input Hint Generation Started ===", {
+    inputType: inputContext.type,
+    hasLabel: !!inputContext.label,
+    hasFormContainer: !!formContainerSelector,
+  });
+
+  try {
+    const apiKey = getOpenAIApiKey();
+    const openai = new OpenAI({ apiKey });
+    const settings = loadSettings();
+    const model = settings.aiModel.model;
+
+    // Build context description
+    let contextDescription = `Page: ${pageTitle}\nURL: ${pageUrl}\n\n`;
+    contextDescription += `Current Input Field:\n`;
+    contextDescription += `- Type: ${inputContext.type}\n`;
+    if (inputContext.label) {
+      contextDescription += `- Label: ${inputContext.label}\n`;
+    }
+    if (inputContext.placeholder) {
+      contextDescription += `- Placeholder: ${inputContext.placeholder}\n`;
+    }
+    if (inputContext.name) {
+      contextDescription += `- Name: ${inputContext.name}\n`;
+    }
+    if (inputContext.id) {
+      contextDescription += `- ID: ${inputContext.id}\n`;
+    }
+    contextDescription += `- Required: ${
+      inputContext.required ? "Yes" : "No"
+    }\n`;
+
+    if (formContainerSelector) {
+      contextDescription += `\nForm Container: ${formContainerSelector}\n`;
+    }
+
+    // Use custom prompt if provided, otherwise use default from settings
+    const basePrompt = customGhostWriterPrompt || settings.ghostWriter.prompt;
+    const isUsingCustomPrompt = !!customGhostWriterPrompt;
+
+    log("INPUT_HINT", "Using prompt for hint generation", {
+      isCustomPrompt: isUsingCustomPrompt,
+      promptLength: basePrompt.length,
+    });
+
+    // Replace {theme} placeholder in the prompt
+    const userPrompt = basePrompt.replace(/{theme}/g, theme);
+
+    const prompt = `${userPrompt}
+
+${contextDescription}
+
+Theme: ${theme}`;
+
+    log("INPUT_HINT", "Calling OpenAI API for hint generation...", {
+      model,
+      promptLength: prompt.length,
+    });
+
+    const completion = await Promise.race([
+      openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: "system",
+            content: `You are a helpful assistant that generates realistic example values for form fields based on a specific theme. The theme is: ${theme}. Always return only the example value, nothing else. Make it theme-specific and realistic.`,
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 50,
+      }),
+      new Promise<never>((_, reject) => {
+        const timeout = settings.scraper.timeout;
+        setTimeout(
+          () => reject(new Error(`OpenAI API call timeout after ${timeout}ms`)),
+          timeout
+        );
+      }),
+    ]);
+
+    const text = completion.choices[0]?.message?.content;
+    if (!text) {
+      throw new Error("No response from OpenAI API");
+    }
+
+    // Clean up the hint (remove quotes, trim)
+    let hint = text.trim();
+    // Remove surrounding quotes if present
+    if (
+      (hint.startsWith('"') && hint.endsWith('"')) ||
+      (hint.startsWith("'") && hint.endsWith("'"))
+    ) {
+      hint = hint.slice(1, -1);
+    }
+
+    const totalDuration = Date.now() - startTime;
+    log("INPUT_HINT", "=== Input Hint Generation Completed ===", {
+      hint,
+      totalDuration: `${totalDuration}ms`,
+    });
+
+    return hint;
+  } catch (error) {
+    const totalDuration = Date.now() - startTime;
+    logError("INPUT_HINT", "Input hint generation failed", error);
+    log("INPUT_HINT", "=== Input Hint Generation Failed ===", {
+      totalDuration: `${totalDuration}ms`,
+    });
+
+    // Return a fallback hint based on input type
+    const fallbackHints: Record<string, string> = {
+      email: "user@example.com",
+      password: "••••••••",
+      tel: "+1 (555) 123-4567",
+      date: "2024-01-01",
+      number: "123",
+      text: "Enter text here",
+      textarea: "Enter text here",
+      select: "Select an option",
+    };
+
+    return (
+      fallbackHints[inputContext.type.toLowerCase()] ||
+      fallbackHints["text"] ||
+      "Enter value"
     );
   }
 };

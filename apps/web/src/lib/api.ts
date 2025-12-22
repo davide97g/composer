@@ -34,7 +34,8 @@ const getApiUrl = async (): Promise<string> => {
 export const startAgent = async (
   url: string,
   theme: Theme | string,
-  customPrompt?: string
+  customPrompt?: string,
+  customGhostWriterPrompt?: string
 ): Promise<void> => {
   const apiUrl = await getApiUrl();
   const response = await fetch(`${apiUrl}/start`, {
@@ -42,7 +43,7 @@ export const startAgent = async (
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ url, theme, customPrompt }),
+    body: JSON.stringify({ url, theme, customPrompt, customGhostWriterPrompt }),
   });
 
   if (!response.ok) {

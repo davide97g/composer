@@ -49,6 +49,10 @@ export const loadSettings = (): Settings => {
         ...DEFAULT_SETTINGS.filler,
         ...settings.filler,
       },
+      ghostWriter: {
+        ...DEFAULT_SETTINGS.ghostWriter,
+        ...settings.ghostWriter,
+      },
     };
   } catch (error) {
     console.error("Failed to load settings:", error);

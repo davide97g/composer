@@ -131,6 +131,11 @@ const activateInputMode = async (page: Page): Promise<void> => {
           extractBtn.style.opacity = "1";
           extractBtn.style.cursor = "pointer";
         }
+        
+        // Also call the exposed function if available
+        if (window.qaAgentEnableExtractButton) {
+          window.qaAgentEnableExtractButton();
+        }
       }
 
       // Function to handle element click
@@ -182,11 +187,14 @@ const activateInputMode = async (page: Page): Promise<void> => {
         window.qaAgentSelectedElement = null;
       };
 
-      // Update button state
-      const button = document.getElementById("qa-agent-detect-btn");
-      if (button) {
-        button.textContent = "Cancel";
-        button.style.backgroundColor = "#dc3545";
+      // Show cancel and extract buttons in floating bar
+      const cancelBtn = document.getElementById("qa-agent-cancel-btn");
+      const extractBtn = document.getElementById("qa-agent-extract-btn");
+      if (cancelBtn) {
+        cancelBtn.style.display = "block";
+      }
+      if (extractBtn) {
+        extractBtn.style.display = "block";
       }
     })();
   `;
@@ -530,16 +538,14 @@ const deactivateInputMode = async (page: Page): Promise<void> => {
         .querySelectorAll(".qa-agent-form-highlight")
         .forEach(function(el) { el.remove(); });
       
-      // Remove controls
-      const controls = document.getElementById("qa-agent-controls");
-      if (controls) {
-        controls.remove();
+      // Hide cancel and extract buttons in floating bar
+      const cancelBtn = document.getElementById("qa-agent-cancel-btn");
+      const extractBtn = document.getElementById("qa-agent-extract-btn");
+      if (cancelBtn) {
+        cancelBtn.style.display = "none";
       }
-      
-      // Reset button
-      const button = document.getElementById("qa-agent-detect-btn");
-      if (button) {
-        button.style.display = "block";
+      if (extractBtn) {
+        extractBtn.style.display = "none";
       }
     })();
   `;
@@ -578,7 +584,7 @@ const deactivatePointerMode = async (page: Page): Promise<void> => {
 export const injectFloatingButton = async (page: Page): Promise<void> => {
   const buttonCode = `
     (function() {
-      // Remove existing buttons and controls if present
+      // Remove existing buttons, controls, and floating bar if present
       const existingButton = document.getElementById("qa-agent-detect-btn");
       if (existingButton) {
         existingButton.remove();
@@ -587,229 +593,291 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       if (existingControls) {
         existingControls.remove();
       }
+      const existingBar = document.getElementById("qa-agent-floating-bar");
+      if (existingBar) {
+        existingBar.remove();
+      }
 
-      // Create floating button
-      const button = document.createElement("button");
-      button.id = "qa-agent-detect-btn";
-      button.textContent = "Detect Form";
-      button.style.cssText = 
+      // Load saved position from localStorage
+      const savedPosition = localStorage.getItem("qa-agent-control-bar-position");
+      let initialTop = 20;
+      let initialRight = 20;
+      if (savedPosition) {
+        try {
+          const pos = JSON.parse(savedPosition);
+          initialTop = pos.top || 20;
+          initialRight = pos.right || 20;
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+
+      // Create draggable floating bar
+      const floatingBar = document.createElement("div");
+      floatingBar.id = "qa-agent-floating-bar";
+      floatingBar.style.cssText = 
         "position: fixed;" +
-        "bottom: 20px;" +
-        "right: 20px;" +
+        "top: " + initialTop + "px;" +
+        "right: " + initialRight + "px;" +
         "z-index: 999999;" +
-        "padding: 12px 24px;" +
-        "background-color: #007bff;" +
-        "color: white;" +
-        "border: none;" +
-        "border-radius: 6px;" +
-        "font-size: 16px;" +
-        "font-weight: 600;" +
-        "cursor: pointer;" +
-        "box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" +
-        "transition: background-color 0.2s;";
+        "display: flex;" +
+        "gap: 8px;" +
+        "flex-direction: row;" +
+        "align-items: center;" +
+        "background-color: white;" +
+        "border: 2px solid #007bff;" +
+        "border-radius: 8px;" +
+        "padding: 8px;" +
+        "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);" +
+        "user-select: none;";
 
-      button.addEventListener("mouseenter", function() {
-        if (!window.qaAgentInputMode) {
-          button.style.backgroundColor = "#0056b3";
+      // Drag handle
+      const dragHandle = document.createElement("div");
+      dragHandle.textContent = "⋮⋮";
+      dragHandle.style.cssText = 
+        "cursor: move;" +
+        "padding: 4px 8px;" +
+        "color: #666;" +
+        "font-size: 18px;" +
+        "line-height: 1;" +
+        "user-select: none;";
+      
+      // Make bar draggable
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let dragStartRight = 0;
+      let dragStartTop = 0;
+
+      const handleMouseDown = function(e) {
+        if (e.target === dragHandle || dragHandle.contains(e.target)) {
+          isDragging = true;
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          
+          // Get current CSS positioning values
+          const computedStyle = window.getComputedStyle(floatingBar);
+          dragStartRight = parseFloat(computedStyle.right) || 0;
+          dragStartTop = parseFloat(computedStyle.top) || 0;
+          
+          e.preventDefault();
         }
-      });
+      };
 
-      button.addEventListener("mouseleave", function() {
-        if (!window.qaAgentInputMode) {
-          button.style.backgroundColor = "#007bff";
-        }
-      });
+      const handleMouseMove = function(e) {
+        if (!isDragging) return;
+        
+        // Calculate mouse movement delta
+        const deltaX = e.clientX - dragStartX;
+        const deltaY = e.clientY - dragStartY;
+        
+        // For 'right' positioning: moving mouse right decreases 'right' value
+        // For 'top' positioning: moving mouse down increases 'top' value
+        let newRight = dragStartRight - deltaX;
+        let newTop = dragStartTop + deltaY;
+        
+        // Constrain to viewport
+        const barRect = floatingBar.getBoundingClientRect();
+        const maxRight = window.innerWidth - barRect.width;
+        const maxTop = window.innerHeight - barRect.height;
+        
+        newRight = Math.max(0, Math.min(newRight, maxRight));
+        newTop = Math.max(0, Math.min(newTop, maxTop));
+        
+        floatingBar.style.right = newRight + "px";
+        floatingBar.style.top = newTop + "px";
+        floatingBar.style.left = "auto";
+        floatingBar.style.bottom = "auto";
+        
+        // Save position
+        localStorage.setItem("qa-agent-control-bar-position", JSON.stringify({
+          top: newTop,
+          right: newRight
+        }));
+      };
 
-      button.addEventListener("click", function() {
-        const currentMode = window.qaAgentInputMode;
+      const handleMouseUp = function() {
+        isDragging = false;
+      };
 
-        if (currentMode) {
-          // Deactivate input mode
-          window.qaAgentInputMode = false;
-          button.textContent = "Detect Form";
-          button.style.backgroundColor = "#007bff";
+      document.addEventListener("mousedown", handleMouseDown);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
 
-          // Remove controls
-          const controls = document.getElementById("qa-agent-controls");
-          if (controls) {
-            controls.remove();
+      // Store cleanup
+      window.qaAgentFloatingBarCleanup = function() {
+        document.removeEventListener("mousedown", handleMouseDown);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
+      };
+
+      floatingBar.appendChild(dragHandle);
+
+      // Helper function to create button
+      function createButton(id, text, bgColor, hoverColor) {
+        const btn = document.createElement("button");
+        btn.id = id;
+        btn.textContent = text;
+        btn.style.cssText = 
+          "padding: 8px 16px;" +
+          "background-color: " + bgColor + ";" +
+          "color: white;" +
+          "border: none;" +
+          "border-radius: 6px;" +
+          "font-size: 14px;" +
+          "font-weight: 600;" +
+          "cursor: pointer;" +
+          "box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);" +
+          "transition: background-color 0.2s;" +
+          "white-space: nowrap;";
+        btn.addEventListener("mouseenter", function() {
+          if (!btn.disabled) {
+            btn.style.backgroundColor = hoverColor;
           }
-
-          // Call cleanup
-          if (window.qaAgentInputModeCleanup) {
-            window.qaAgentInputModeCleanup();
+        });
+        btn.addEventListener("mouseleave", function() {
+          if (!btn.disabled) {
+            btn.style.backgroundColor = bgColor;
           }
+        });
+        return btn;
+      }
 
-          // Call deactivate function
-          if (window.serverDeactivateInputMode) {
-            window.serverDeactivateInputMode().catch(function(err) {
-              console.error("Error calling serverDeactivateInputMode:", err);
+      // Ghost Writer toggle button
+      const ghostWriterBtn = createButton("qa-agent-ghost-writer-btn", "Ghost Writer", "#6c757d", "#5a6268");
+      ghostWriterBtn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        const isActive = window.qaAgentGhostWriterActive;
+        if (isActive) {
+          if (window.serverDeactivateGhostWriter) {
+            window.serverDeactivateGhostWriter().catch(function(err) {
+              console.error("Error deactivating ghost writer:", err);
             });
           }
+          ghostWriterBtn.textContent = "Ghost Writer";
+          ghostWriterBtn.style.backgroundColor = "#6c757d";
         } else {
-          // Activate input mode
-          window.qaAgentInputMode = true;
-          button.textContent = "Cancel";
-          button.style.backgroundColor = "#dc3545";
-
-          // Create control buttons container
-          const controls = document.createElement("div");
-          controls.id = "qa-agent-controls";
-          controls.style.cssText = 
-            "position: fixed;" +
-            "bottom: 20px;" +
-            "right: 20px;" +
-            "z-index: 1000000;" +
-            "display: flex;" +
-            "gap: 12px;" +
-            "flex-direction: column;" +
-            "pointer-events: auto;";
-
-          // Cancel button
-          const cancelBtn = document.createElement("button");
-          cancelBtn.id = "qa-agent-cancel-btn";
-          cancelBtn.textContent = "Cancel";
-          cancelBtn.style.cssText = 
-            "padding: 12px 24px;" +
-            "background-color: #dc3545;" +
-            "color: white;" +
-            "border: none;" +
-            "border-radius: 6px;" +
-            "font-size: 16px;" +
-            "font-weight: 600;" +
-            "cursor: pointer;" +
-            "box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" +
-            "transition: background-color 0.2s;" +
-            "pointer-events: auto;" +
-            "position: relative;" +
-            "z-index: 1000001;";
-          cancelBtn.addEventListener("mouseenter", function() {
-            cancelBtn.style.backgroundColor = "#c82333";
-          });
-          cancelBtn.addEventListener("mouseleave", function() {
-            cancelBtn.style.backgroundColor = "#dc3545";
-          });
-          // Use capture phase and stop immediate propagation to ensure this runs before input mode handler
-          cancelBtn.addEventListener("click", function(e) {
-            // Stop immediate propagation to prevent input mode handler from running
-            e.stopImmediatePropagation();
-            e.stopPropagation();
-            e.preventDefault();
-            
-            console.log("[CANCEL_BUTTON] Cancel button clicked");
-            
-            window.qaAgentInputMode = false;
-            button.textContent = "Detect Form";
-            button.style.backgroundColor = "#007bff";
-            controls.remove();
-            if (window.qaAgentInputModeCleanup) {
-              window.qaAgentInputModeCleanup();
-            }
-            if (window.serverDeactivateInputMode) {
-              window.serverDeactivateInputMode().catch(function(err) {
-                console.error("Error calling serverDeactivateInputMode:", err);
-              });
-            }
-          }, true);
-
-          // Generate button (disabled initially)
-          const extractBtn = document.createElement("button");
-          extractBtn.id = "qa-agent-extract-btn";
-          extractBtn.textContent = "Generate";
-          extractBtn.style.cssText = 
-            "padding: 12px 24px;" +
-            "background-color: #28a745;" +
-            "color: white;" +
-            "border: none;" +
-            "border-radius: 6px;" +
-            "font-size: 16px;" +
-            "font-weight: 600;" +
-            "cursor: not-allowed;" +
-            "opacity: 0.5;" +
-            "box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);" +
-            "transition: background-color 0.2s, opacity 0.2s;" +
-            "pointer-events: auto;" +
-            "position: relative;" +
-            "z-index: 1000001;";
-          extractBtn.disabled = true;
-          extractBtn.addEventListener("mouseenter", function() {
-            if (!extractBtn.disabled) {
-              extractBtn.style.backgroundColor = "#218838";
-            }
-          });
-          extractBtn.addEventListener("mouseleave", function() {
-            if (!extractBtn.disabled) {
-              extractBtn.style.backgroundColor = "#28a745";
-            }
-          });
-          // Use capture phase and stop immediate propagation to ensure this runs before input mode handler
-          extractBtn.addEventListener("click", function(e) {
-            // Stop immediate propagation to prevent input mode handler from running
-            e.stopImmediatePropagation();
-            e.stopPropagation();
-            e.preventDefault();
-            
-            console.log("[EXTRACT_BUTTON] Extract button clicked", {
-              disabled: extractBtn.disabled,
-              hasServerExtractForm: !!window.serverExtractForm,
-              selectedElement: window.qaAgentSelectedElement ? {
-                selector: window.qaAgentSelectedElement.selector,
-                htmlSize: window.qaAgentSelectedElement.html ? window.qaAgentSelectedElement.html.length : 0,
-              } : null,
-            });
-            
-            if (extractBtn.disabled) {
-              console.warn("[EXTRACT_BUTTON] Extract button is disabled, ignoring click");
-              return;
-            }
-            
-            if (window.serverExtractForm) {
-              console.log("[EXTRACT_BUTTON] Calling serverExtractForm...");
-              window.serverExtractForm().then(function(result) {
-                console.log("[EXTRACT_BUTTON] serverExtractForm completed successfully", result);
-              }).catch(function(err) {
-                console.error("[EXTRACT_BUTTON] Error calling serverExtractForm:", err);
-                // Show toast notification instead of alert
-                const toast = document.createElement("div");
-                toast.textContent = "⚠ Error extracting form: " + (err.message || String(err));
-                toast.style.cssText = 
-                  "position: fixed; top: 20px; right: 20px; z-index: 1000002; " +
-                  "background-color: #dc3545; color: white; padding: 12px 24px; " +
-                  "border-radius: 6px; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);";
-                document.body.appendChild(toast);
-                setTimeout(function() { toast.remove(); }, 5000);
-              });
-            } else {
-              console.error("[EXTRACT_BUTTON] serverExtractForm function not found on window");
-              // Show toast notification instead of alert
-              const toast = document.createElement("div");
-              toast.textContent = "⚠ Extract function not available. Please refresh the page.";
-              toast.style.cssText = 
-                "position: fixed; top: 20px; right: 20px; z-index: 1000002; " +
-                "background-color: #dc3545; color: white; padding: 12px 24px; " +
-                "border-radius: 6px; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);";
-              document.body.appendChild(toast);
-              setTimeout(function() { toast.remove(); }, 5000);
-            }
-          }, true);
-
-          controls.appendChild(cancelBtn);
-          controls.appendChild(extractBtn);
-          document.body.appendChild(controls);
-
-          // Hide main button when controls are shown
-          button.style.display = "none";
-
-          // Call activate function
-          if (window.serverActivateInputMode) {
-            window.serverActivateInputMode().catch(function(err) {
-              console.error("Error calling serverActivateInputMode:", err);
+          if (window.serverActivateGhostWriter) {
+            window.serverActivateGhostWriter().catch(function(err) {
+              console.error("Error activating ghost writer:", err);
             });
           }
+          ghostWriterBtn.textContent = "Ghost Writer ✓";
+          ghostWriterBtn.style.backgroundColor = "#28a745";
         }
       });
 
-      document.body.appendChild(button);
+      // Update ghost writer button state
+      function updateGhostWriterButton() {
+        const isActive = window.qaAgentGhostWriterActive;
+        if (isActive) {
+          ghostWriterBtn.textContent = "Ghost Writer ✓";
+          ghostWriterBtn.style.backgroundColor = "#28a745";
+        } else {
+          ghostWriterBtn.textContent = "Ghost Writer";
+          ghostWriterBtn.style.backgroundColor = "#6c757d";
+        }
+      }
+
+      // Monitor ghost writer state changes
+      setInterval(updateGhostWriterButton, 500);
+
+      // Detect Form button
+      const detectFormBtn = createButton("qa-agent-detect-btn", "Detect Form", "#007bff", "#0056b3");
+      detectFormBtn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (window.serverActivatePointerMode) {
+          window.serverActivatePointerMode().catch(function(err) {
+            console.error("Error activating pointer mode:", err);
+          });
+        }
+      });
+
+      floatingBar.appendChild(ghostWriterBtn);
+      floatingBar.appendChild(detectFormBtn);
+
+      // Cancel button (shown when in input mode)
+      const cancelBtn = createButton("qa-agent-cancel-btn", "Cancel", "#dc3545", "#c82333");
+      cancelBtn.style.display = "none";
+      cancelBtn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        window.qaAgentInputMode = false;
+        cancelBtn.style.display = "none";
+        extractBtn.style.display = "none";
+        
+        if (window.qaAgentInputModeCleanup) {
+          window.qaAgentInputModeCleanup();
+        }
+        if (window.serverDeactivateInputMode) {
+          window.serverDeactivateInputMode().catch(function(err) {
+            console.error("Error calling serverDeactivateInputMode:", err);
+          });
+        }
+      }, true);
+
+      // Generate button (shown when in input mode)
+      const extractBtn = createButton("qa-agent-extract-btn", "Generate", "#28a745", "#218838");
+      extractBtn.style.display = "none";
+      extractBtn.disabled = true;
+      extractBtn.style.opacity = "0.5";
+      extractBtn.style.cursor = "not-allowed";
+      extractBtn.addEventListener("click", function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        
+        if (extractBtn.disabled) return;
+        
+        if (window.serverExtractForm) {
+          window.serverExtractForm().then(function(result) {
+            console.log("[EXTRACT_BUTTON] serverExtractForm completed successfully", result);
+          }).catch(function(err) {
+            console.error("[EXTRACT_BUTTON] Error calling serverExtractForm:", err);
+          });
+        }
+      }, true);
+
+      floatingBar.appendChild(cancelBtn);
+      floatingBar.appendChild(extractBtn);
+
+      // Monitor input mode state to show/hide buttons
+      function updateInputModeButtons() {
+        const isInputMode = window.qaAgentInputMode;
+        if (isInputMode) {
+          cancelBtn.style.display = "block";
+          extractBtn.style.display = "block";
+        } else {
+          cancelBtn.style.display = "none";
+          extractBtn.style.display = "none";
+        }
+      }
+
+      // Monitor for extract button enable/disable
+      function updateExtractButton() {
+        const hasSelection = !!window.qaAgentSelectedElement;
+        extractBtn.disabled = !hasSelection;
+        extractBtn.style.opacity = hasSelection ? "1" : "0.5";
+        extractBtn.style.cursor = hasSelection ? "pointer" : "not-allowed";
+      }
+
+      setInterval(function() {
+        updateInputModeButtons();
+        updateExtractButton();
+      }, 500);
+
+      // Expose functions to enable extract button
+      window.qaAgentEnableExtractButton = function() {
+        extractBtn.disabled = false;
+        extractBtn.style.opacity = "1";
+        extractBtn.style.cursor = "pointer";
+      };
+
+      document.body.appendChild(floatingBar);
     })();
   `;
 

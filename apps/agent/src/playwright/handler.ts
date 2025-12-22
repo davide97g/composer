@@ -18,6 +18,11 @@ import {
   injectFloatingButton,
 } from "./injector";
 import {
+  activateGhostWriter,
+  deactivateGhostWriter,
+} from "./ghostWriter";
+import { generateInputHint } from "./geminiService";
+import {
   loadNavigationHistory,
   saveNavigationHistory,
 } from "./navigationStorage";
@@ -61,6 +66,9 @@ let currentTheme: Theme | string | null = null;
 let isFunctionExposed = false;
 let currentBaseUrl: string | null = null;
 let currentCustomPrompt: string | undefined = undefined;
+let currentCustomGhostWriterPrompt: string | undefined = undefined;
+let isGhostWriterActive = false;
+let isInputModeActive = false;
 
 // Navigation history storage: baseUrl -> array of URLs (max 5)
 // Load from file on initialization
@@ -231,7 +239,15 @@ const setupPageHandlers = async (
       }
 
       try {
+        // Deactivate ghost writer if active (input mode replaces ghost writer)
+        if (isGhostWriterActive) {
+          log("INPUT_MODE", "Deactivating ghost writer before activating input mode");
+          await deactivateGhostWriter(currentPage);
+          isGhostWriterActive = false;
+        }
+
         await activateInputMode(currentPage);
+        isInputModeActive = true;
         const totalDuration = Date.now() - startTime;
         log("INPUT_MODE", "=== Input Mode Activated ===", {
           totalDuration: `${totalDuration}ms`,
@@ -248,6 +264,7 @@ const setupPageHandlers = async (
     await page.exposeFunction("serverDeactivateInputMode", async () => {
       if (!currentPage) return;
       await deactivateInputMode(currentPage);
+      isInputModeActive = false;
     });
 
     await page.exposeFunction("serverExtractForm", async () => {
@@ -964,6 +981,205 @@ const setupPageHandlers = async (
     });
 
     await page.exposeFunction(
+      "serverGenerateInputHint",
+      async (
+        inputContext: {
+          selector: string;
+          type: string;
+          label?: string | null;
+          placeholder?: string | null;
+          name?: string | null;
+          id?: string | null;
+          required: boolean;
+        },
+        formContainerSelector: string | null,
+        pageUrl: string,
+        pageTitle: string
+      ): Promise<string> => {
+        const startTime = Date.now();
+        log("INPUT_HINT", "=== Server Input Hint Generation Started ===", {
+          inputType: inputContext.type,
+          hasLabel: !!inputContext.label,
+        });
+
+        if (!currentPage) {
+          logError("INPUT_HINT", "No current page available", new Error("No page"));
+          return "";
+        }
+
+        try {
+          log("INPUT_HINT", "Generating hint with custom prompt", {
+            hasCustomGhostWriterPrompt: !!currentCustomGhostWriterPrompt,
+            theme: currentTheme || "Default",
+          });
+          const hint = await generateInputHint(
+            inputContext,
+            formContainerSelector,
+            pageUrl,
+            pageTitle,
+            currentTheme || "Default",
+            currentCustomGhostWriterPrompt
+          );
+          const totalDuration = Date.now() - startTime;
+          log("INPUT_HINT", "=== Server Input Hint Generation Completed ===", {
+            hint,
+            totalDuration: `${totalDuration}ms`,
+          });
+          return hint;
+        } catch (error) {
+          const totalDuration = Date.now() - startTime;
+          logError("INPUT_HINT", "Server input hint generation failed", error);
+          log("INPUT_HINT", "=== Server Input Hint Generation Failed ===", {
+            totalDuration: `${totalDuration}ms`,
+          });
+          return "";
+        }
+      }
+    );
+
+    await page.exposeFunction("serverActivateGhostWriter", async () => {
+      const startTime = Date.now();
+      log("GHOST_WRITER", "=== Ghost Writer Activation Started ===", {
+        theme: currentTheme,
+        pageUrl: currentPage?.url(),
+      });
+
+      if (!currentPage || !currentTheme) {
+        logError("GHOST_WRITER", "Missing required context", {
+          hasPage: !!currentPage,
+          hasTheme: !!currentTheme,
+        });
+        return;
+      }
+
+      try {
+        // Deactivate input mode if active (ghost writer replaces input mode)
+        if (isInputModeActive) {
+          log("GHOST_WRITER", "Deactivating input mode before activating ghost writer");
+          await deactivateInputMode(currentPage);
+          isInputModeActive = false;
+        }
+
+        await activateGhostWriter(currentPage, currentTheme);
+        isGhostWriterActive = true;
+
+        const totalDuration = Date.now() - startTime;
+        log("GHOST_WRITER", "=== Ghost Writer Activated ===", {
+          totalDuration: `${totalDuration}ms`,
+        });
+      } catch (error) {
+        const totalDuration = Date.now() - startTime;
+        logError("GHOST_WRITER", "Ghost writer activation failed", error);
+        log("GHOST_WRITER", "=== Ghost Writer Activation Failed ===", {
+          totalDuration: `${totalDuration}ms`,
+        });
+      }
+    });
+
+    await page.exposeFunction("serverDeactivateGhostWriter", async () => {
+      const startTime = Date.now();
+      log("GHOST_WRITER", "=== Ghost Writer Deactivation Started ===");
+
+      if (!currentPage) {
+        return;
+      }
+
+      try {
+        await deactivateGhostWriter(currentPage);
+        isGhostWriterActive = false;
+
+        const totalDuration = Date.now() - startTime;
+        log("GHOST_WRITER", "=== Ghost Writer Deactivated ===", {
+          totalDuration: `${totalDuration}ms`,
+        });
+      } catch (error) {
+        const totalDuration = Date.now() - startTime;
+        logError("GHOST_WRITER", "Ghost writer deactivation failed", error);
+        log("GHOST_WRITER", "=== Ghost Writer Deactivation Failed ===", {
+          totalDuration: `${totalDuration}ms`,
+        });
+      }
+    });
+
+    await page.exposeFunction(
+      "serverFillInputWithHint",
+      async (testId: string, hint: string, tagName: string): Promise<boolean> => {
+        const startTime = Date.now();
+        log("GHOST_WRITER", "=== Fill Input With Hint Started ===", {
+          testId,
+          hint,
+          tagName,
+        });
+
+        if (!currentPage) {
+          logError("GHOST_WRITER", "No current page available", new Error("No page"));
+          return false;
+        }
+
+        try {
+          const selector = `[data-testid="${testId}"]`;
+          const element = await currentPage
+            .waitForSelector(selector, { state: "attached", timeout: 2000 })
+            .catch(() => null);
+
+          if (!element) {
+            log("GHOST_WRITER", "Element not found with testId", { testId, selector });
+            return false;
+          }
+
+          // Scroll element into view
+          try {
+            await element.scrollIntoViewIfNeeded();
+            await currentPage.waitForTimeout(100);
+          } catch (e) {
+            // Ignore scroll errors
+          }
+
+          // Fill based on tag type
+          if (tagName === "select") {
+            // For select, try to select by value or label
+            try {
+              await element.selectOption(hint);
+            } catch (e) {
+              // Try selecting by visible text
+              try {
+                await element.selectOption({ label: hint });
+              } catch (e2) {
+                log("GHOST_WRITER", "Failed to select option", {
+                  testId,
+                  hint,
+                  error: e2 instanceof Error ? e2.message : String(e2),
+                });
+                return false;
+              }
+            }
+          } else {
+            // For input and textarea, use fill
+            await element.fill(hint);
+          }
+
+          const totalDuration = Date.now() - startTime;
+          log("GHOST_WRITER", "=== Fill Input With Hint Completed ===", {
+            testId,
+            hint,
+            totalDuration: `${totalDuration}ms`,
+          });
+
+          return true;
+        } catch (error) {
+          const totalDuration = Date.now() - startTime;
+          logError("GHOST_WRITER", "Fill input with hint failed", error);
+          log("GHOST_WRITER", "=== Fill Input With Hint Failed ===", {
+            testId,
+            hint,
+            totalDuration: `${totalDuration}ms`,
+          });
+          return false;
+        }
+      }
+    );
+
+    await page.exposeFunction(
       "serverDetectForm",
       async (formIndex?: number) => {
         const startTime = Date.now();
@@ -1085,18 +1301,64 @@ const setupPageHandlers = async (
 
   // Inject button on initial load
   await injectFloatingButton(page);
+
+  // Add keyboard shortcut handler for ghost writer (Ctrl+Shift+G / Cmd+Shift+G)
+  await page.evaluate(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+Shift+G (Windows/Linux) or Cmd+Shift+G (Mac)
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const modifierKey = isMac ? e.metaKey : e.ctrlKey;
+      
+      if (modifierKey && e.shiftKey && e.key === "G" && !e.altKey) {
+        // Only prevent default if we're not in an input field (to allow normal typing)
+        const target = e.target as HTMLElement;
+        const tagName = target.tagName.toLowerCase();
+        const isInput = tagName === "input" || tagName === "textarea";
+        
+        if (!isInput || target.hasAttribute("contenteditable")) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Toggle ghost writer mode
+          const isActive = (window as any).qaAgentGhostWriterActive;
+          if (isActive) {
+            if ((window as any).serverDeactivateGhostWriter) {
+              (window as any).serverDeactivateGhostWriter().catch((err: Error) => {
+                console.error("Error deactivating ghost writer:", err);
+              });
+            }
+          } else {
+            if ((window as any).serverActivateGhostWriter) {
+              (window as any).serverActivateGhostWriter().catch((err: Error) => {
+                console.error("Error activating ghost writer:", err);
+              });
+            }
+          }
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    
+    // Store cleanup function
+    (window as any).qaAgentKeyboardShortcutCleanup = () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+    };
+  });
 };
 
 export const startBrowserSession = async (
   url: string,
   theme: Theme | string,
-  customPrompt?: string
+  customPrompt?: string,
+  customGhostWriterPrompt?: string
 ): Promise<void> => {
   const startTime = Date.now();
   log("BROWSER_SESSION", "=== Browser Session Started ===", {
     url,
     theme,
     hasCustomPrompt: !!customPrompt,
+    hasCustomGhostWriterPrompt: !!customGhostWriterPrompt,
   });
 
   try {
@@ -1136,10 +1398,12 @@ export const startBrowserSession = async (
     currentTheme = theme;
     currentBaseUrl = getBaseUrl(url);
     currentCustomPrompt = customPrompt;
+    currentCustomGhostWriterPrompt = customGhostWriterPrompt;
     log("BROWSER_SESSION", "Session variables set", {
       baseUrl: currentBaseUrl,
       theme: currentTheme,
       hasCustomPrompt: !!currentCustomPrompt,
+      hasCustomGhostWriterPrompt: !!currentCustomGhostWriterPrompt,
     });
 
     // Add initial URL to navigation history

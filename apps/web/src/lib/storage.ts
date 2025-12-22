@@ -13,6 +13,7 @@ export const saveWebsite = (url: string, theme: Theme | string, navigationHistor
     createdAt: existingWebsite?.createdAt || Date.now(),
     navigationHistory: navigationHistory.length > 0 ? navigationHistory : (existingWebsite?.navigationHistory || []),
     customPrompt: existingWebsite?.customPrompt,
+    customGhostWriterPrompt: existingWebsite?.customGhostWriterPrompt,
   };
   const updated = [newWebsite, ...websites.filter((w) => w.url !== url)];
   localStorage.setItem(WEBSITES_KEY, JSON.stringify(updated));
@@ -35,6 +36,25 @@ export const getWebsiteCustomPrompt = (url: string): string | undefined => {
   const websites = getWebsites();
   const website = websites.find((w) => w.url === url);
   return website?.customPrompt;
+};
+
+export const updateWebsiteCustomGhostWriterPrompt = (url: string, customGhostWriterPrompt: string | undefined): void => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  if (website) {
+    if (customGhostWriterPrompt) {
+      website.customGhostWriterPrompt = customGhostWriterPrompt;
+    } else {
+      delete website.customGhostWriterPrompt;
+    }
+    localStorage.setItem(WEBSITES_KEY, JSON.stringify(websites));
+  }
+};
+
+export const getWebsiteCustomGhostWriterPrompt = (url: string): string | undefined => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  return website?.customGhostWriterPrompt;
 };
 
 export const updateWebsiteNavigationHistory = (url: string, navigationHistory: string[]): void => {
@@ -71,6 +91,7 @@ export const getWebsites = (): Website[] => {
       ...w,
       navigationHistory: w.navigationHistory || [],
       customPrompt: w.customPrompt,
+      customGhostWriterPrompt: w.customGhostWriterPrompt,
     }));
   } catch {
     return [];
