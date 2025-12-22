@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.next
+.turbo
+*.log
+.DS_Store
+.sessions
+.composer
+.env
+.env.local
+.env.*.local
+
