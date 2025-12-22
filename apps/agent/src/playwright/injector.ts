@@ -1,5 +1,6 @@
 import { Page } from "playwright";
 import { analyzeFormsWithOpenAI, OpenAIForm } from "./geminiService";
+import { showToast } from "./uiHelpers";
 
 let isPointerModeActive = false;
 let isInputModeActive = false;
@@ -245,11 +246,12 @@ const activatePointerMode = async (page: Page): Promise<void> => {
 
     if (openAIForms.length === 0) {
       const totalDuration = Date.now() - startTime;
-      log("LLM_ANALYSIS", "No forms detected by LLM", {
+      log("LLM_ANALYSIS", "No forms detected by LLM - waiting 5 seconds and continuing", {
         totalDuration: `${totalDuration}ms`,
       });
+      await showToast(page, "No forms found on this page", "warning");
+      await page.waitForTimeout(5000);
       await page.evaluate(() => {
-        alert("No forms found on this page");
         (window as any).qaAgentPointerMode = false;
         const button = document.getElementById("qa-agent-detect-btn");
         if (button) {
@@ -273,24 +275,23 @@ const activatePointerMode = async (page: Page): Promise<void> => {
   } catch (error) {
     const totalDuration = Date.now() - startTime;
     logError("LLM_ANALYSIS", "LLM form analysis failed", error);
-    log("LLM_ANALYSIS", "LLM analysis failed", {
+    log("LLM_ANALYSIS", "LLM analysis failed - waiting 5 seconds and continuing", {
       totalDuration: `${totalDuration}ms`,
     });
 
-    await page.evaluate(
-      (errorMessage) => {
-        alert(`Failed to analyze forms: ${errorMessage}`);
-        (window as any).qaAgentPointerMode = false;
-        const button = document.getElementById("qa-agent-detect-btn");
-        if (button) {
-          button.textContent = "Detect Form";
-          button.style.backgroundColor = "#007bff";
-          button.style.cursor = "pointer";
-          (button as HTMLButtonElement).disabled = false;
-        }
-      },
-      error instanceof Error ? error.message : String(error)
-    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await showToast(page, `Failed to analyze forms: ${errorMessage}`, "error");
+    await page.waitForTimeout(5000);
+    await page.evaluate(() => {
+      (window as any).qaAgentPointerMode = false;
+      const button = document.getElementById("qa-agent-detect-btn");
+      if (button) {
+        button.textContent = "Detect Form";
+        button.style.backgroundColor = "#007bff";
+        button.style.cursor = "pointer";
+        (button as HTMLButtonElement).disabled = false;
+      }
+    });
     return;
   }
 
@@ -768,11 +769,27 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
                 console.log("[EXTRACT_BUTTON] serverExtractForm completed successfully", result);
               }).catch(function(err) {
                 console.error("[EXTRACT_BUTTON] Error calling serverExtractForm:", err);
-                alert("Error extracting form: " + (err.message || String(err)));
+                // Show toast notification instead of alert
+                const toast = document.createElement("div");
+                toast.textContent = "⚠ Error extracting form: " + (err.message || String(err));
+                toast.style.cssText = 
+                  "position: fixed; top: 20px; right: 20px; z-index: 1000002; " +
+                  "background-color: #dc3545; color: white; padding: 12px 24px; " +
+                  "border-radius: 6px; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);";
+                document.body.appendChild(toast);
+                setTimeout(function() { toast.remove(); }, 5000);
               });
             } else {
               console.error("[EXTRACT_BUTTON] serverExtractForm function not found on window");
-              alert("Extract function not available. Please refresh the page.");
+              // Show toast notification instead of alert
+              const toast = document.createElement("div");
+              toast.textContent = "⚠ Extract function not available. Please refresh the page.";
+              toast.style.cssText = 
+                "position: fixed; top: 20px; right: 20px; z-index: 1000002; " +
+                "background-color: #dc3545; color: white; padding: 12px 24px; " +
+                "border-radius: 6px; font-size: 14px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);";
+              document.body.appendChild(toast);
+              setTimeout(function() { toast.remove(); }, 5000);
             }
           }, true);
 

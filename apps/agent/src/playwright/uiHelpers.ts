@@ -253,6 +253,56 @@ export const createProgressList = async (
         li.style.borderLeftColor = status.border;
         li.style.backgroundColor = status.bg;
       }
+      
+      // Add glowing border and spinning icon for in_progress items
+      if (item.status === "in_progress") {
+        li.style.position = "relative";
+        li.style.overflow = "visible";
+        // Add glowing border animation using a rotating gradient
+        const glowBorder = document.createElement("div");
+        glowBorder.className = "qa-agent-progress-glow-border";
+        glowBorder.style.cssText =
+          "position: absolute;" +
+          "top: -3px;" +
+          "left: -3px;" +
+          "right: -3px;" +
+          "bottom: -3px;" +
+          "border-radius: 8px;" +
+          "background: conic-gradient(from 0deg, #007bff, #00d4ff, #007bff, #00d4ff, #007bff);" +
+          "animation: qa-agent-glow-border-rotate 2s linear infinite;" +
+          "z-index: -1;" +
+          "filter: blur(1px);";
+        li.appendChild(glowBorder);
+        
+        // Add inner border to create the glowing effect
+        const innerBorder = document.createElement("div");
+        innerBorder.style.cssText =
+          "position: absolute;" +
+          "top: 0;" +
+          "left: 0;" +
+          "right: 0;" +
+          "bottom: 0;" +
+          "border-radius: 6px;" +
+          "background: " + status.bg + ";" +
+          "margin: 3px;" +
+          "z-index: -1;";
+        li.appendChild(innerBorder);
+        
+        // Add additional glow effect
+        const glowShadow = document.createElement("div");
+        glowShadow.style.cssText =
+          "position: absolute;" +
+          "top: -3px;" +
+          "left: -3px;" +
+          "right: -3px;" +
+          "bottom: -3px;" +
+          "border-radius: 8px;" +
+          "box-shadow: 0 0 10px rgba(0, 123, 255, 0.6), 0 0 20px rgba(0, 212, 255, 0.4);" +
+          "animation: qa-agent-glow-pulse 2s ease-in-out infinite;" +
+          "z-index: -2;" +
+          "pointer-events: none;";
+        li.appendChild(glowShadow);
+      }
       // Store selector for click handler
       if (item.selector) {
         try {
@@ -297,6 +347,11 @@ export const createProgressList = async (
       if (status) {
         iconSpan.textContent = status.icon;
       }
+      // Add spinning animation for in_progress items
+      if (item.status === "in_progress") {
+        iconSpan.style.display = "inline-block";
+        iconSpan.style.animation = "qa-agent-icon-spin 1s linear infinite";
+      }
       const labelSpan = document.createElement("span");
       try {
         labelSpan.textContent =
@@ -323,6 +378,40 @@ export const createProgressList = async (
     });
     container.appendChild(list);
     document.body.appendChild(container);
+    
+    // Add CSS animations for glowing border and spinning icon
+    if (!document.getElementById("qa-agent-progress-animations")) {
+      const style = document.createElement("style");
+      style.id = "qa-agent-progress-animations";
+      style.textContent =
+        "@keyframes qa-agent-glow-border-rotate {" +
+        "  from {" +
+        "    transform: rotate(0deg);" +
+        "  }" +
+        "  to {" +
+        "    transform: rotate(360deg);" +
+        "  }" +
+        "}" +
+        "@keyframes qa-agent-glow-pulse {" +
+        "  0%, 100% {" +
+        "    opacity: 0.8;" +
+        "    box-shadow: 0 0 10px rgba(0, 123, 255, 0.6), 0 0 20px rgba(0, 212, 255, 0.4);" +
+        "  }" +
+        "  50% {" +
+        "    opacity: 1;" +
+        "    box-shadow: 0 0 20px rgba(0, 123, 255, 0.9), 0 0 40px rgba(0, 212, 255, 0.6);" +
+        "  }" +
+        "}" +
+        "@keyframes qa-agent-icon-spin {" +
+        "  from {" +
+        "    transform: rotate(0deg);" +
+        "  }" +
+        "  to {" +
+        "    transform: rotate(360deg);" +
+        "  }" +
+        "}";
+      document.head.appendChild(style);
+    }
     // Highlight skipped inputs with yellow border
     progressItems.forEach(function (item) {
       if (item.status === "skipped" && item.selector) {

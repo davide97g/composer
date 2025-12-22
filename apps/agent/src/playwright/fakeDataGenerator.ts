@@ -32,6 +32,11 @@ const getOpenAIApiKey = (): string => {
   return getApiKey();
 };
 
+export interface GenerationResult {
+  values: Record<string, string>;
+  resourceDescription: string;
+}
+
 /**
  * Generate fake data using LLM based on theme and field information
  */
@@ -39,7 +44,7 @@ const generateFakeDataWithLLM = async (
   fields: FormField[],
   theme: Theme | string,
   customPrompt?: string
-): Promise<Record<string, string>> => {
+): Promise<GenerationResult> => {
   const startTime = Date.now();
   log("LLM_DATA_GENERATION", "=== LLM Fake Data Generation Started ===", {
     theme,
@@ -76,6 +81,17 @@ const generateFakeDataWithLLM = async (
 
 ${systemPromptPart}`;
     
+    // Enhanced user prompt to request resource description
+    const enhancedUserPrompt = `${userPrompt}
+
+Additionally, provide a brief description (2-3 sentences) of what kind of data was generated and what form/resource this represents. Include this in a "resourceDescription" field in your JSON response.
+
+Return your response as a JSON object with this structure:
+{
+  "resourceDescription": "Brief description of the generated data and form context",
+  ...field selectors as keys with generated values
+}`;
+    
     log("LLM_DATA_GENERATION", "Calling OpenAI API...", {
       fieldsCount: fields.length,
       model,
@@ -91,7 +107,7 @@ ${systemPromptPart}`;
           },
           {
             role: "user",
-            content: userPrompt,
+            content: enhancedUserPrompt,
           },
         ],
         response_format: { type: "json_object" },
@@ -119,17 +135,33 @@ ${systemPromptPart}`;
       jsonText = jsonText.split("```")[1].split("```")[0].trim();
     }
 
-    const generatedValues: Record<string, string> = JSON.parse(jsonText);
+    const parsedResponse: Record<string, string> = JSON.parse(jsonText);
+    
+    // Extract resource description if present, otherwise generate default
+    const resourceDescription = parsedResponse.resourceDescription || 
+      `Generated ${Object.keys(parsedResponse).length} field values using theme: ${theme}`;
+    
+    // Remove resourceDescription from values object
+    const generatedValues: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsedResponse)) {
+      if (key !== "resourceDescription") {
+        generatedValues[key] = value;
+      }
+    }
 
     const totalDuration = Date.now() - startTime;
     log("LLM_DATA_GENERATION", "=== LLM Fake Data Generation Completed ===", {
       theme,
       fieldsCount: fields.length,
       generatedValuesCount: Object.keys(generatedValues).length,
+      resourceDescription,
       totalDuration: `${totalDuration}ms`,
     });
 
-    return generatedValues;
+    return {
+      values: generatedValues,
+      resourceDescription,
+    };
   } catch (error) {
     const totalDuration = Date.now() - startTime;
     logError("LLM_DATA_GENERATION", "LLM fake data generation failed", error);
@@ -137,7 +169,11 @@ ${systemPromptPart}`;
       totalDuration: `${totalDuration}ms`,
     });
     // Fall back to hardcoded generation
-    return generateFakeDataHardcoded(fields, theme);
+    const values = generateFakeDataHardcoded(fields, theme);
+    return {
+      values,
+      resourceDescription: `Generated ${Object.keys(values).length} field values using hardcoded fallback with theme: ${theme}`,
+    };
   }
 };
 
@@ -312,12 +348,16 @@ export const generateFakeData = async (
   fields: FormField[],
   theme: Theme | string,
   customPrompt?: string
-): Promise<Record<string, string>> => {
+): Promise<GenerationResult> => {
   try {
     return await generateFakeDataWithLLM(fields, theme, customPrompt);
   } catch (error) {
     logError("DATA_GENERATION", "LLM generation failed, using hardcoded fallback", error);
-    return generateFakeDataHardcoded(fields, theme);
+    const values = generateFakeDataHardcoded(fields, theme);
+    return {
+      values,
+      resourceDescription: `Generated ${Object.keys(values).length} field values using hardcoded fallback with theme: ${theme}`,
+    };
   }
 };
 

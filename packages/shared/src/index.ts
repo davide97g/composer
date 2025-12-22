@@ -6,12 +6,36 @@ export enum Theme {
   GAME_OF_THRONES_NOBLE = "Game of Thrones Noble",
 }
 
+export enum GenerationStatus {
+  SUCCESS = "success",
+  WARNING = "warning",
+  ERROR = "error",
+}
+
+export interface GeneratedField {
+  label: string;
+  type: string;
+  value: string;
+  status: GenerationStatus;
+}
+
+export interface Generation {
+  id: string;
+  url: string;
+  createdAt: number;
+  screenshotBefore?: string;
+  screenshotAfter?: string;
+  resourceDescription: string;
+  fields: GeneratedField[];
+}
+
 export interface Website {
   url: string;
   theme: Theme | string;
   createdAt: number;
   navigationHistory: string[];
   customPrompt?: string;
+  generations?: Generation[];
 }
 
 export interface FormField {

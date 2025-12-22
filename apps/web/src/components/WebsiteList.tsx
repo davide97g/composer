@@ -1,4 +1,5 @@
 import { PromptDialog } from "@/components/PromptDialog";
+import { GenerationsTab } from "@/components/GenerationsTab";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@/components/ui/tabs";
 import { getNavigationHistory, startAgent } from "@/lib/api";
 import {
   getActiveTheme,
@@ -424,36 +426,51 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
                 </div>
               </div>
               {isExpanded && (
-                <div className="px-3 pb-3 pt-0 space-y-1 border-t">
-                  {isLoading ? (
-                    <div className="text-sm text-muted-foreground py-2">
-                      Loading navigation history...
-                    </div>
-                  ) : hasHistory ? (
-                    history.map((url, index) => {
-                      const relativePath = getRelativePath(baseUrl, url);
-                      return (
-                        <Button
-                          key={index}
-                          variant="ghost"
-                          className="w-full justify-start text-left text-sm h-auto py-1.5"
-                          onClick={() =>
-                            handleWebsiteClick({ ...website, url })
-                          }
-                          title={url}
-                        >
-                          <span className="text-muted-foreground truncate block w-full text-left">
-                            {relativePath}
-                          </span>
-                        </Button>
-                      );
-                    })
-                  ) : (
-                    <div className="text-sm text-muted-foreground py-2">
-                      No navigation history yet. Navigate within the website to
-                      see visited pages.
-                    </div>
-                  )}
+                <div className="px-3 pb-3 pt-0 border-t">
+                  <Tabs defaultValue="generations">
+                    <TabList>
+                      <Tab value="generations">Generations</Tab>
+                      <Tab value="history">Navigation History</Tab>
+                    </TabList>
+                    <TabPanels>
+                      <TabPanel value="generations">
+                        <GenerationsTab baseUrl={baseUrl} websiteUrl={website.url} />
+                      </TabPanel>
+                      <TabPanel value="history">
+                        <div className="space-y-1 pt-2">
+                          {isLoading ? (
+                            <div className="text-sm text-muted-foreground py-2">
+                              Loading navigation history...
+                            </div>
+                          ) : hasHistory ? (
+                            history.map((url, index) => {
+                              const relativePath = getRelativePath(baseUrl, url);
+                              return (
+                                <Button
+                                  key={index}
+                                  variant="ghost"
+                                  className="w-full justify-start text-left text-sm h-auto py-1.5"
+                                  onClick={() =>
+                                    handleWebsiteClick({ ...website, url })
+                                  }
+                                  title={url}
+                                >
+                                  <span className="text-muted-foreground truncate block w-full text-left">
+                                    {relativePath}
+                                  </span>
+                                </Button>
+                              );
+                            })
+                          ) : (
+                            <div className="text-sm text-muted-foreground py-2">
+                              No navigation history yet. Navigate within the website to
+                              see visited pages.
+                            </div>
+                          )}
+                        </div>
+                      </TabPanel>
+                    </TabPanels>
+                  </Tabs>
                 </div>
               )}
             </div>

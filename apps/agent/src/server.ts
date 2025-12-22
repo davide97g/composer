@@ -7,6 +7,8 @@ import {
   startBrowserSession,
 } from "./playwright/handler";
 import { getApiKey, saveSettings } from "./playwright/settingsStorage";
+import { addGeneration, getGenerations } from "./playwright/generationsStorage";
+import { Generation } from "@composer/shared";
 
 const PORT = 3001;
 
@@ -36,7 +38,8 @@ const createExpressApp = () => {
   const app = express();
 
   app.use(cors());
-  app.use(express.json());
+  // Increase body size limit to 50MB to handle screenshots
+  app.use(express.json({ limit: "50mb" }));
 
   app.post("/api/start", async (req, res) => {
     try {
@@ -110,6 +113,38 @@ const createExpressApp = () => {
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
+  app.post("/api/generations", async (req, res) => {
+    try {
+      const { baseUrl, generation } = req.body;
+
+      if (!baseUrl || typeof baseUrl !== "string") {
+        return res.status(400).json({ error: "Invalid baseUrl" });
+      }
+
+      if (!generation || typeof generation !== "object") {
+        return res.status(400).json({ error: "Invalid generation" });
+      }
+
+      await addGeneration(baseUrl, generation as Generation);
+      res.json({ success: true, message: "Generation saved" });
+    } catch (error) {
+      console.error("Error saving generation:", error);
+      res.status(500).json({ error: "Failed to save generation" });
+    }
+  });
+
+  app.get("/api/generations/:baseUrl", (req, res) => {
+    try {
+      const { baseUrl } = req.params;
+      const decodedBaseUrl = decodeURIComponent(baseUrl);
+      const generations = getGenerations(decodedBaseUrl);
+      res.json({ success: true, generations });
+    } catch (error) {
+      console.error("Error getting generations:", error);
+      res.status(500).json({ error: "Failed to get generations" });
     }
   });
 

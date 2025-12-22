@@ -4,7 +4,7 @@
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
-    "dev": "tsc && tsc -p tsconfig.preload.json && tsc --watch & electron .",
+    "dev": "NODE_ENV=development tsc && tsc -p tsconfig.preload.json && tsc --watch & electron .",
     "build": "tsc && tsc -p tsconfig.preload.json",
     "package": "electron-builder",
     "package:mac": "electron-builder --mac",

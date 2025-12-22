@@ -51,13 +51,15 @@ export const detectForm = async (
         fieldsCount: targetForm.fields.length,
       });
 
-      // Convert OpenAI form fields to FormField format
-      const fields = targetForm.fields.map((field) => ({
-        selector: field.selector,
-        type: field.type,
-        label: field.label,
-        required: field.required,
-      }));
+      // Convert OpenAI form fields to FormField format, filtering out file inputs
+      const fields = targetForm.fields
+        .filter((field) => field.type !== "file")
+        .map((field) => ({
+          selector: field.selector,
+          type: field.type,
+          label: field.label,
+          required: field.required,
+        }));
 
       const totalDuration = Date.now() - startTime;
       log("FORM_DETECTION", "=== Form Field Detection Completed (LLM) ===", {
@@ -129,6 +131,12 @@ export const detectForm = async (
         | HTMLSelectElement;
       const tag = input.tagName.toLowerCase();
       const type = input.type || tag;
+
+      // Skip file inputs
+      if (type === "file") {
+        return;
+      }
+
       const id = input.id || "";
       const name = input.name || "";
       const required = input.hasAttribute("required");
@@ -239,6 +247,12 @@ export const detectFormFromElement = async (
         | HTMLSelectElement;
       const tag = input.tagName.toLowerCase();
       const type = input.type || tag;
+
+      // Skip file inputs
+      if (type === "file") {
+        return;
+      }
+
       const id = input.id || "";
       const name = input.name || "";
       let required = input.hasAttribute("required");
@@ -247,7 +261,7 @@ export const detectFormFromElement = async (
       // Find label
       let label: string | undefined;
       let labelElement: HTMLElement | null = null;
-      
+
       if (id) {
         labelElement = document.querySelector(`label[for="${id}"]`);
         if (labelElement) {
@@ -289,27 +303,35 @@ export const detectFormFromElement = async (
         if (labelText.includes("*") || labelText.includes("•")) {
           required = true;
         }
-        
+
         // Also check if there's an asterisk element near the input
         if (!required && labelElement) {
           const asteriskElements = labelElement.querySelectorAll("*");
           for (let i = 0; i < asteriskElements.length; i++) {
             const el = asteriskElements[i];
             const text = el.textContent || "";
-            if (text === "*" || text === "•" || el.classList.contains("required") || el.classList.contains("asterisk")) {
+            if (
+              text === "*" ||
+              text === "•" ||
+              el.classList.contains("required") ||
+              el.classList.contains("asterisk")
+            ) {
               required = true;
               break;
             }
           }
         }
-        
+
         // Check siblings for asterisk indicators
         if (!required) {
           const parent = input.parentElement;
           if (parent) {
             const siblings = Array.from(parent.children);
             for (const sibling of siblings) {
-              if (sibling !== input && (sibling.tagName === "SPAN" || sibling.tagName === "LABEL")) {
+              if (
+                sibling !== input &&
+                (sibling.tagName === "SPAN" || sibling.tagName === "LABEL")
+              ) {
                 const text = sibling.textContent?.trim() || "";
                 if (text === "*" || text === "•") {
                   required = true;
@@ -322,14 +344,16 @@ export const detectFormFromElement = async (
       }
 
       // Generate a unique data-testid for reliable selection
-      const testId = `qa-agent-field-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
+      const testId = `qa-agent-field-${index}-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+
       // Assign data-testid to the input element for reliable selection
       input.setAttribute("data-testid", testId);
-      
+
       // Generate selector - prefer data-testid, then id, then name
       let selector = `[data-testid="${testId}"]`;
-      
+
       // Also store alternative selectors for fallback
       let alternativeSelector = "";
       if (id && /^[a-zA-Z]/.test(id)) {

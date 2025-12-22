@@ -1,4 +1,10 @@
-import { FormData, Theme } from "@composer/shared";
+import {
+  FormData,
+  GeneratedField,
+  Generation,
+  GenerationStatus,
+  Theme,
+} from "@composer/shared";
 import { BrowserContext, Page } from "playwright";
 import { createPersistentContext, navigateToUrl } from "./browser";
 import { generateFakeData } from "./fakeDataGenerator";
@@ -145,6 +151,59 @@ const addToNavigationHistory = async (
  */
 export const getNavigationHistory = (baseUrl: string): string[] => {
   return navigationHistory.get(baseUrl) || [];
+};
+
+/**
+ * Save generation via API
+ */
+const saveGenerationViaAPI = async (
+  baseUrl: string,
+  generation: Generation
+): Promise<void> => {
+  try {
+    const apiUrl = "http://localhost:3001/api";
+    const response = await fetch(`${apiUrl}/generations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ baseUrl, generation }),
+    });
+
+    if (!response.ok) {
+      logError(
+        "GENERATION_SAVE",
+        "Failed to save generation",
+        new Error(`HTTP ${response.status}`)
+      );
+    } else {
+      log("GENERATION_SAVE", "Generation saved successfully", {
+        baseUrl,
+        generationId: generation.id,
+      });
+    }
+  } catch (error) {
+    logError("GENERATION_SAVE", "Error saving generation", error);
+    // Don't throw - generation saving failure shouldn't break the form filling flow
+  }
+};
+
+/**
+ * Map fillForm status to GenerationStatus
+ */
+const mapStatusToGenerationStatus = (
+  status: "todo" | "in_progress" | "done" | "error" | "skipped"
+): GenerationStatus => {
+  switch (status) {
+    case "done":
+      return GenerationStatus.SUCCESS;
+    case "error":
+      return GenerationStatus.ERROR;
+    case "skipped":
+      return GenerationStatus.WARNING;
+    default:
+      return GenerationStatus.SUCCESS;
+  }
 };
 
 const setupPageHandlers = async (
@@ -326,20 +385,18 @@ const setupPageHandlers = async (
         });
 
         if (!selectedInfo || !selectedInfo.selector) {
-          log("FORM_EXTRACTION", "No element selected - aborting");
-          await currentPage.evaluate(() => {
-            alert("Please select an element first");
-          });
+          log("FORM_EXTRACTION", "No element selected - waiting 5 seconds and continuing");
+          await showToast(currentPage, "Please select an element first", "warning");
+          await currentPage.waitForTimeout(5000);
           return;
         }
 
         if (!selectedInfo.stats?.found) {
-          log("FORM_EXTRACTION", "Selected element not found in DOM", {
+          log("FORM_EXTRACTION", "Selected element not found in DOM - waiting 5 seconds and continuing", {
             selector: selectedInfo.selector,
           });
-          await currentPage.evaluate((selector) => {
-            alert(`Selected element not found. Selector: ${selector}`);
-          }, selectedInfo.selector);
+          await showToast(currentPage, `Selected element not found. Selector: ${selectedInfo.selector}`, "warning");
+          await currentPage.waitForTimeout(5000);
           return;
         }
 
@@ -375,11 +432,30 @@ const setupPageHandlers = async (
         });
 
         if (fields.length === 0) {
-          log("FORM_EXTRACTION", "No form fields detected - aborting");
-          await currentPage.evaluate(() => {
-            alert("No form fields found in the selected element");
-          });
+          log("FORM_EXTRACTION", "No form fields detected - waiting 5 seconds and continuing");
+          await showToast(currentPage, "No form fields found in the selected element", "warning");
+          await currentPage.waitForTimeout(5000);
           return;
+        }
+
+        // Capture screenshot before filling
+        log(
+          "FORM_EXTRACTION",
+          "Step 4a: Capturing screenshot before form filling..."
+        );
+        let screenshotBefore: string | undefined;
+        try {
+          const screenshotBuffer = await currentPage.screenshot();
+          screenshotBefore = screenshotBuffer.toString("base64");
+          log("FORM_EXTRACTION", "Step 4a: Screenshot captured", {
+            size: screenshotBefore.length,
+          });
+        } catch (error) {
+          logError(
+            "FORM_EXTRACTION",
+            "Failed to capture screenshot before",
+            error
+          );
         }
 
         // Generate fake data
@@ -389,15 +465,18 @@ const setupPageHandlers = async (
           fieldsCount: fields.length,
         });
         const generationStartTime = Date.now();
-        const generatedValues = await generateFakeData(
+        const generationResult = await generateFakeData(
           fields,
           currentTheme,
           currentCustomPrompt
         );
+        const generatedValues = generationResult.values;
+        const resourceDescription = generationResult.resourceDescription;
         const generationDuration = Date.now() - generationStartTime;
 
         log("FORM_EXTRACTION", "Step 4: Fake data generation completed", {
           valuesCount: Object.keys(generatedValues).length,
+          resourceDescription,
           duration: `${generationDuration}ms`,
           sampleValues: Object.entries(generatedValues)
             .slice(0, 3)
@@ -410,6 +489,9 @@ const setupPageHandlers = async (
         // Fill the form
         await showToast(currentPage, "Filling form...", "info");
         log("FORM_EXTRACTION", "Step 5: Filling form with generated values...");
+
+        // Track field statuses for generation
+        const fieldStatuses: Map<number, GenerationStatus> = new Map();
 
         // Create progress list
         const progressItems: Array<{
@@ -433,6 +515,9 @@ const setupPageHandlers = async (
         ) => {
           if (!currentPage) return;
           const field = fields[fieldIndex];
+          const genStatus = mapStatusToGenerationStatus(status);
+          fieldStatuses.set(fieldIndex, genStatus);
+
           progressItems[fieldIndex] = {
             label: field.label || "Unnamed field",
             value: generatedValues[field.selector] || "",
@@ -449,6 +534,51 @@ const setupPageHandlers = async (
         log("FORM_EXTRACTION", "Step 5: Form filling completed", {
           duration: `${fillDuration}ms`,
         });
+
+        // Capture screenshot after filling
+        log(
+          "FORM_EXTRACTION",
+          "Step 5a: Capturing screenshot after form filling..."
+        );
+        let screenshotAfter: string | undefined;
+        try {
+          const screenshotBuffer = await currentPage.screenshot();
+          screenshotAfter = screenshotBuffer.toString("base64");
+          log("FORM_EXTRACTION", "Step 5a: Screenshot captured", {
+            size: screenshotAfter.length,
+          });
+        } catch (error) {
+          logError(
+            "FORM_EXTRACTION",
+            "Failed to capture screenshot after",
+            error
+          );
+        }
+
+        // Create generation object
+        const generatedFields: GeneratedField[] = fields.map(
+          (field, index) => ({
+            label: field.label || "Unnamed field",
+            type: field.type,
+            value: generatedValues[field.selector] || "",
+            status: fieldStatuses.get(index) || GenerationStatus.SUCCESS,
+          })
+        );
+
+        const generation: Generation = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          url: currentPage.url(),
+          createdAt: Date.now(),
+          screenshotBefore,
+          screenshotAfter,
+          resourceDescription,
+          fields: generatedFields,
+        };
+
+        // Save generation
+        if (currentBaseUrl) {
+          await saveGenerationViaAPI(currentBaseUrl, generation);
+        }
 
         // Create form data object
         const formData: FormData = {
@@ -500,9 +630,8 @@ const setupPageHandlers = async (
           totalDuration: `${totalDuration}ms`,
         });
 
-        await currentPage.evaluate(() => {
-          alert("Failed to extract form. Please try again.");
-        });
+        await showToast(currentPage, "Failed to extract form. Continuing...", "error");
+        await currentPage.waitForTimeout(5000);
       }
     });
 
@@ -625,15 +754,17 @@ const setupPageHandlers = async (
             });
             const generationStartTime = Date.now();
 
-            const generatedValues = await generateFakeData(
+            const generationResult = await generateFakeData(
               fields,
               currentTheme,
               currentCustomPrompt
             );
+            const generatedValues = generationResult.values;
             const generationDuration = Date.now() - generationStartTime;
 
             log("FORM_DETECTION", `Step 3b: Data generation completed`, {
               generatedFieldsCount: Object.keys(generatedValues).length,
+              resourceDescription: generationResult.resourceDescription,
               duration: `${generationDuration}ms`,
             });
 
@@ -741,8 +872,9 @@ const setupPageHandlers = async (
               totalDuration: `${totalDuration}ms`,
             });
 
+            await showToast(currentPage, "Failed to automatically extract form. Continuing...", "error");
+            await currentPage.waitForTimeout(5000);
             await currentPage.evaluate(() => {
-              alert("Failed to automatically extract form. Please try again.");
               const button = document.getElementById("qa-agent-detect-btn");
               if (button) {
                 button.textContent = "Detect Form";
@@ -791,10 +923,9 @@ const setupPageHandlers = async (
           const fields = await detectForm(currentPage, formIndex);
 
           if (fields.length === 0) {
-            log("MANUAL_FORM_DETECTION", "No form fields detected");
-            await currentPage.evaluate(() => {
-              alert("No form fields detected on this page");
-            });
+            log("MANUAL_FORM_DETECTION", "No form fields detected - waiting 5 seconds and continuing");
+            await showToast(currentPage, "No form fields detected on this page", "warning");
+            await currentPage.waitForTimeout(5000);
             return;
           }
 
@@ -802,11 +933,12 @@ const setupPageHandlers = async (
             theme: currentTheme,
             fieldsCount: fields.length,
           });
-          const generatedValues = await generateFakeData(
+          const generationResult = await generateFakeData(
             fields,
             currentTheme,
             currentCustomPrompt
           );
+          const generatedValues = generationResult.values;
 
           const formData: FormData = {
             fields,

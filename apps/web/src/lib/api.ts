@@ -103,3 +103,20 @@ export const saveSettingsToAgent = async (settings: unknown): Promise<void> => {
   }
 };
 
+export const getGenerations = async (baseUrl: string): Promise<any[]> => {
+  try {
+    const apiUrl = await getApiUrl();
+    const encodedBaseUrl = encodeURIComponent(baseUrl);
+    const response = await fetch(`${apiUrl}/generations/${encodedBaseUrl}`);
+    
+    if (!response.ok) {
+      return [];
+    }
+    
+    const data = await response.json();
+    return data.generations || [];
+  } catch {
+    return [];
+  }
+};
+
