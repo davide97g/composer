@@ -1,3 +1,4 @@
+import { PromptDialog } from "@/components/PromptDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -6,8 +7,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { getNavigationHistory, startAgent } from "@/lib/api";
-import { getActiveTheme, updateWebsiteNavigationHistory } from "@/lib/storage";
+import {
+  getActiveTheme,
+  getWebsiteTitle,
+  updateWebsiteCustomPrompt,
+  updateWebsiteNavigationHistory,
+  updateWebsiteTitle,
+} from "@/lib/storage";
 import { fetchWebsiteTitle, getFaviconUrl } from "@/lib/utils";
 import { Website } from "@composer/shared";
 import { useCallback, useEffect, useState } from "react";
@@ -65,11 +73,20 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
   const [loadingMetadata, setLoadingMetadata] = useState<Set<string>>(
     new Set()
   );
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [selectedWebsite, setSelectedWebsite] = useState<Website | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [titleValues, setTitleValues] = useState<Map<string, string>>(
+    new Map()
+  );
+  const [customTitles, setCustomTitles] = useState<Map<string, string>>(
+    new Map()
+  );
 
   const handleWebsiteClick = async (website: Website) => {
     try {
       const theme = getActiveTheme();
-      await startAgent(website.url, theme);
+      await startAgent(website.url, theme, website.customPrompt);
       onWebsiteClick(website.url);
       // Refresh navigation history after starting agent
       setTimeout(() => {
@@ -145,7 +162,10 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
     }
   };
 
-  const handleToggleExpand = async (website: Website) => {
+  const handleToggleExpand = async (website: Website, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
     const baseUrl = getBaseUrl(website.url);
     const isExpanded = expandedUrls.has(website.url);
 
@@ -163,16 +183,71 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
     }
   };
 
+  const handleStartEditTitle = (website: Website, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const customTitle = customTitles.get(website.url);
+    const metadata = websiteMetadata.get(website.url);
+    const displayTitle = customTitle || metadata?.title || website.url;
+    setEditingTitle(website.url);
+    setTitleValues((prev) => {
+      const newValues = new Map(prev);
+      newValues.set(website.url, displayTitle);
+      return newValues;
+    });
+  };
+
+  const handleSaveTitle = (website: Website) => {
+    const newTitle = titleValues.get(website.url)?.trim();
+    if (newTitle) {
+      updateWebsiteTitle(website.url, newTitle);
+      setCustomTitles((prev) => {
+        const newTitles = new Map(prev);
+        newTitles.set(website.url, newTitle);
+        return newTitles;
+      });
+    } else {
+      // If empty, remove custom title
+      updateWebsiteTitle(website.url, undefined);
+      setCustomTitles((prev) => {
+        const newTitles = new Map(prev);
+        newTitles.delete(website.url);
+        return newTitles;
+      });
+    }
+    setEditingTitle(null);
+  };
+
+  const handleCancelEditTitle = () => {
+    setEditingTitle(null);
+  };
+
+  const handleTitleKeyDown = (
+    website: Website,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key === "Enter") {
+      handleSaveTitle(website);
+    } else if (e.key === "Escape") {
+      handleCancelEditTitle();
+    }
+  };
+
   // Load navigation history from stored websites
   useEffect(() => {
     const histories = new Map<string, string[]>();
+    const titles = new Map<string, string>();
     websites.forEach((website) => {
       const baseUrl = getBaseUrl(website.url);
       if (website.navigationHistory && website.navigationHistory.length > 0) {
         histories.set(baseUrl, website.navigationHistory);
       }
+      const customTitle = getWebsiteTitle(website.url);
+      if (customTitle) {
+        titles.set(website.url, customTitle);
+      }
     });
     setNavigationHistories(histories);
+    setCustomTitles(titles);
   }, [websites]);
 
   // Fetch website metadata (favicon and title) for each website
@@ -236,71 +311,120 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
           const hasHistory = history.length > 0;
           const isLoading = loadingHistories.has(baseUrl);
           const metadata = websiteMetadata.get(website.url);
-          const isLoadingMetadata = loadingMetadata.has(website.url);
+          const customTitle = customTitles.get(website.url);
+          const isEditing = editingTitle === website.url;
+          const displayTitle = customTitle || metadata?.title || website.url;
 
           return (
-            <div key={website.url} className="space-y-1">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 justify-start text-left h-auto py-2"
-                  onClick={() => handleWebsiteClick(website)}
-                >
-                  <div className="flex items-start gap-3 w-full">
-                    <img
-                      src={metadata?.favicon || getFaviconUrl(website.url)}
-                      alt=""
-                      className="w-5 h-5 shrink-0 mt-0.5"
-                      onError={(e) => {
-                        // Hide image on error
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                    <div className="flex flex-col items-start w-full min-w-0">
-                      {metadata?.title ? (
-                        <>
-                          <span className="font-medium truncate w-full text-left">
-                            {metadata.title}
-                          </span>
-                          <span className="text-xs text-muted-foreground truncate w-full text-left">
-                            {website.url}
-                          </span>
-                        </>
+            <div
+              key={website.url}
+              className="border rounded-lg hover:bg-accent/50 transition-colors"
+            >
+              <div className="p-3" onClick={() => handleWebsiteClick(website)}>
+                <div className="flex items-start gap-3 w-full">
+                  <img
+                    src={metadata?.favicon || getFaviconUrl(website.url)}
+                    alt=""
+                    className="w-5 h-5 shrink-0 mt-0.5"
+                    onError={(e) => {
+                      // Hide image on error
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <div className="flex flex-col items-start w-full min-w-0 flex-1">
+                    <div className="flex items-center gap-2 w-full">
+                      {isEditing ? (
+                        <Input
+                          value={titleValues.get(website.url) || ""}
+                          onChange={(e) => {
+                            setTitleValues((prev) => {
+                              const newValues = new Map(prev);
+                              newValues.set(website.url, e.target.value);
+                              return newValues;
+                            });
+                          }}
+                          onBlur={() => handleSaveTitle(website)}
+                          onKeyDown={(e) => handleTitleKeyDown(website, e)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-7 text-sm font-medium"
+                          autoFocus
+                        />
                       ) : (
                         <>
-                          <span className="font-medium truncate w-full text-left">
-                            {website.url}
+                          <span
+                            className="font-medium truncate flex-1 text-left cursor-pointer hover:text-primary"
+                            onClick={(e) => handleStartEditTitle(website, e)}
+                            title="Click to edit title"
+                          >
+                            {displayTitle}
                           </span>
-                          {isLoadingMetadata && (
-                            <span className="text-xs text-muted-foreground">
-                              Loading...
+                          {website.customPrompt && (
+                            <span
+                              className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded shrink-0"
+                              title="Custom prompt"
+                            >
+                              Custom
                             </span>
                           )}
                         </>
                       )}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(website.createdAt).toLocaleString()}
-                      </span>
                     </div>
+                    <span className="text-xs text-muted-foreground truncate w-full text-left">
+                      {website.url}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(website.createdAt).toLocaleString()}
+                    </span>
                   </div>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => handleToggleExpand(website)}
-                  aria-label={isExpanded ? "Collapse" : "Expand"}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <span className="text-sm animate-spin">⟳</span>
-                  ) : (
-                    <span className="text-lg">{isExpanded ? "−" : "+"}</span>
-                  )}
-                </Button>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedWebsite(website);
+                        setPromptDialogOpen(true);
+                      }}
+                      aria-label="Edit prompt"
+                      title="Edit custom prompt"
+                    >
+                      <span className="text-sm">✎</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => handleToggleExpand(website, e)}
+                      aria-label={isExpanded ? "Collapse" : "Expand"}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <span className="text-sm animate-spin">⟳</span>
+                      ) : (
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className={`transition-transform ${
+                            isExpanded ? "rotate-90" : ""
+                          }`}
+                        >
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
               {isExpanded && (
-                <div className="ml-4 space-y-1 pl-4 border-l-2">
+                <div className="px-3 pb-3 pt-0 space-y-1 border-t">
                   {isLoading ? (
                     <div className="text-sm text-muted-foreground py-2">
                       Loading navigation history...
@@ -336,6 +460,17 @@ export const WebsiteList = ({ websites, onWebsiteClick }: WebsiteListProps) => {
           );
         })}
       </CardContent>
+
+      <PromptDialog
+        open={promptDialogOpen}
+        onOpenChange={setPromptDialogOpen}
+        website={selectedWebsite}
+        websites={websites}
+        onSave={(url, prompt) => {
+          updateWebsiteCustomPrompt(url, prompt);
+          onWebsiteClick(url);
+        }}
+      />
     </Card>
   );
 };

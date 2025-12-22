@@ -54,6 +54,7 @@ let currentPage: Page | null = null;
 let currentTheme: Theme | string | null = null;
 let isFunctionExposed = false;
 let currentBaseUrl: string | null = null;
+let currentCustomPrompt: string | undefined = undefined;
 
 // Navigation history storage: baseUrl -> array of URLs (max 5)
 // Load from file on initialization
@@ -388,7 +389,11 @@ const setupPageHandlers = async (
           fieldsCount: fields.length,
         });
         const generationStartTime = Date.now();
-        const generatedValues = await generateFakeData(fields, currentTheme);
+        const generatedValues = await generateFakeData(
+          fields,
+          currentTheme,
+          currentCustomPrompt
+        );
         const generationDuration = Date.now() - generationStartTime;
 
         log("FORM_EXTRACTION", "Step 4: Fake data generation completed", {
@@ -622,7 +627,8 @@ const setupPageHandlers = async (
 
             const generatedValues = await generateFakeData(
               fields,
-              currentTheme
+              currentTheme,
+              currentCustomPrompt
             );
             const generationDuration = Date.now() - generationStartTime;
 
@@ -796,7 +802,11 @@ const setupPageHandlers = async (
             theme: currentTheme,
             fieldsCount: fields.length,
           });
-          const generatedValues = await generateFakeData(fields, currentTheme);
+          const generatedValues = await generateFakeData(
+            fields,
+            currentTheme,
+            currentCustomPrompt
+          );
 
           const formData: FormData = {
             fields,
@@ -876,10 +886,15 @@ const setupPageHandlers = async (
 
 export const startBrowserSession = async (
   url: string,
-  theme: Theme | string
+  theme: Theme | string,
+  customPrompt?: string
 ): Promise<void> => {
   const startTime = Date.now();
-  log("BROWSER_SESSION", "=== Browser Session Started ===", { url, theme });
+  log("BROWSER_SESSION", "=== Browser Session Started ===", {
+    url,
+    theme,
+    hasCustomPrompt: !!customPrompt,
+  });
 
   try {
     // Close existing context if any
@@ -913,9 +928,11 @@ export const startBrowserSession = async (
 
     currentTheme = theme;
     currentBaseUrl = getBaseUrl(url);
+    currentCustomPrompt = customPrompt;
     log("BROWSER_SESSION", "Session variables set", {
       baseUrl: currentBaseUrl,
       theme: currentTheme,
+      hasCustomPrompt: !!currentCustomPrompt,
     });
 
     // Add initial URL to navigation history

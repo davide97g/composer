@@ -12,9 +12,29 @@ export const saveWebsite = (url: string, theme: Theme | string, navigationHistor
     theme,
     createdAt: existingWebsite?.createdAt || Date.now(),
     navigationHistory: navigationHistory.length > 0 ? navigationHistory : (existingWebsite?.navigationHistory || []),
+    customPrompt: existingWebsite?.customPrompt,
   };
   const updated = [newWebsite, ...websites.filter((w) => w.url !== url)];
   localStorage.setItem(WEBSITES_KEY, JSON.stringify(updated));
+};
+
+export const updateWebsiteCustomPrompt = (url: string, customPrompt: string | undefined): void => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  if (website) {
+    if (customPrompt) {
+      website.customPrompt = customPrompt;
+    } else {
+      delete website.customPrompt;
+    }
+    localStorage.setItem(WEBSITES_KEY, JSON.stringify(websites));
+  }
+};
+
+export const getWebsiteCustomPrompt = (url: string): string | undefined => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  return website?.customPrompt;
 };
 
 export const updateWebsiteNavigationHistory = (url: string, navigationHistory: string[]): void => {
@@ -26,6 +46,21 @@ export const updateWebsiteNavigationHistory = (url: string, navigationHistory: s
   }
 };
 
+export const updateWebsiteTitle = (url: string, customTitle: string | undefined): void => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  if (website) {
+    (website as any).customTitle = customTitle;
+    localStorage.setItem(WEBSITES_KEY, JSON.stringify(websites));
+  }
+};
+
+export const getWebsiteTitle = (url: string): string | undefined => {
+  const websites = getWebsites();
+  const website = websites.find((w) => w.url === url);
+  return (website as any)?.customTitle;
+};
+
 export const getWebsites = (): Website[] => {
   const stored = localStorage.getItem(WEBSITES_KEY);
   if (!stored) return [];
@@ -35,6 +70,7 @@ export const getWebsites = (): Website[] => {
     return websites.map((w) => ({
       ...w,
       navigationHistory: w.navigationHistory || [],
+      customPrompt: w.customPrompt,
     }));
   } catch {
     return [];

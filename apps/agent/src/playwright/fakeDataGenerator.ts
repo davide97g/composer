@@ -1,5 +1,6 @@
-import { FormField, Theme } from "@composer/shared";
+import { FormField, Theme, SYSTEM_PROMPT_PART } from "@composer/shared";
 import OpenAI from "openai";
+import { getApiKey, loadSettings } from "./settingsStorage";
 
 /**
  * Helper function for consistent logging with timestamps
@@ -28,13 +29,7 @@ const logError = (step: string, message: string, error: unknown): void => {
 };
 
 const getOpenAIApiKey = (): string => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "OPENAI_API_KEY environment variable is not set. Please add it to your .env file."
-    );
-  }
-  return apiKey;
+  return getApiKey();
 };
 
 /**
@@ -42,7 +37,8 @@ const getOpenAIApiKey = (): string => {
  */
 const generateFakeDataWithLLM = async (
   fields: FormField[],
-  theme: Theme | string
+  theme: Theme | string,
+  customPrompt?: string
 ): Promise<Record<string, string>> => {
   const startTime = Date.now();
   log("LLM_DATA_GENERATION", "=== LLM Fake Data Generation Started ===", {
@@ -63,61 +59,51 @@ const generateFakeDataWithLLM = async (
       required: field.required,
     }));
 
-    const prompt = `You are generating fake form data based on a theme. Generate realistic, theme-appropriate values for each form field.
+    const settings = loadSettings();
+    const basePrompt = customPrompt || settings.filler.prompt;
+    const model = settings.aiModel.model;
+    
+    // Replace placeholders in the user prompt
+    const userPrompt = basePrompt.replace(/{theme}/g, theme);
+    
+    // Replace placeholders in the system prompt part
+    const systemPromptPart = SYSTEM_PROMPT_PART
+      .replace(/{theme}/g, theme)
+      .replace(/{fields}/g, JSON.stringify(fieldDescriptions, null, 2));
+    
+    // Combine system prompt parts
+    const systemPrompt = `You are a helpful assistant that generates realistic fake form data based on themes. Always return valid JSON only.
 
-Theme: ${theme}
-
-Form Fields:
-${JSON.stringify(fieldDescriptions, null, 2)}
-
-Requirements:
-1. Generate appropriate values for each field based on its type and label
-2. Values should be consistent with the theme: ${theme}
-3. For required fields, ensure values are provided
-4. For email fields, generate valid email addresses
-5. For date fields, use YYYY-MM-DD format
-6. For phone/tel fields, use standard phone number formats
-7. For text fields, generate realistic names, addresses, etc. based on the theme
-8. For select fields, choose an appropriate option value
-9. For checkbox/radio, use "true" or "false" as strings
-
-Return your response as a JSON object where keys are the field selectors and values are the generated data strings:
-{
-  "${fieldDescriptions[0]?.selector || "selector1"}": "generated value 1",
-  "${fieldDescriptions[1]?.selector || "selector2"}": "generated value 2",
-  ...
-}
-
-Important: Return ONLY valid JSON, no markdown, no explanations, just the JSON object.`;
-
+${systemPromptPart}`;
+    
     log("LLM_DATA_GENERATION", "Calling OpenAI API...", {
       fieldsCount: fields.length,
-      model: "gpt-4o-mini",
+      model,
     });
 
     const completion = await Promise.race([
       openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           {
             role: "system",
-            content:
-              "You are a helpful assistant that generates realistic fake form data based on themes. Always return valid JSON only.",
+            content: systemPrompt,
           },
           {
             role: "user",
-            content: prompt,
+            content: userPrompt,
           },
         ],
         response_format: { type: "json_object" },
         temperature: 0.7,
       }),
-      new Promise<never>((_, reject) =>
+      new Promise<never>((_, reject) => {
+        const timeout = settings.filler.timeout;
         setTimeout(
-          () => reject(new Error("OpenAI API call timeout after 30 seconds")),
-          30000
-        )
-      ),
+          () => reject(new Error(`OpenAI API call timeout after ${timeout}ms`)),
+          timeout
+        );
+      }),
     ]);
 
     const text = completion.choices[0]?.message?.content;
@@ -324,10 +310,11 @@ const generateFakeDataHardcoded = (
  */
 export const generateFakeData = async (
   fields: FormField[],
-  theme: Theme | string
+  theme: Theme | string,
+  customPrompt?: string
 ): Promise<Record<string, string>> => {
   try {
-    return await generateFakeDataWithLLM(fields, theme);
+    return await generateFakeDataWithLLM(fields, theme, customPrompt);
   } catch (error) {
     logError("DATA_GENERATION", "LLM generation failed, using hardcoded fallback", error);
     return generateFakeDataHardcoded(fields, theme);

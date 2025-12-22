@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getApiKey, loadSettings } from "./settingsStorage";
 
 export interface OpenAIFormField {
   selector: string;
@@ -45,19 +46,14 @@ const logError = (step: string, message: string, error: unknown): void => {
 
 const getOpenAIApiKey = (): string => {
   log("OPENAI_API", "Checking for OpenAI API key...");
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    logError(
-      "OPENAI_API",
-      "OpenAI API key not found",
-      new Error("API key missing")
-    );
-    throw new Error(
-      "OPENAI_API_KEY environment variable is not set. Please add it to your .env file."
-    );
+  try {
+    const apiKey = getApiKey();
+    log("OPENAI_API", "OpenAI API key found", { keyLength: apiKey.length });
+    return apiKey;
+  } catch (error) {
+    logError("OPENAI_API", "OpenAI API key not found", error as Error);
+    throw error;
   }
-  log("OPENAI_API", "OpenAI API key found", { keyLength: apiKey.length });
-  return apiKey;
 };
 
 /**
@@ -212,19 +208,30 @@ export const analyzeFormsWithOpenAI = async (
 ): Promise<OpenAIFormAnalysis> => {
   const startTime = Date.now();
   const htmlSize = html.length;
+  const settings = loadSettings();
 
-  // Optimize HTML to reduce context size
-  log("OPENAI_API", "Optimizing HTML content...", {
-    originalSize: `${htmlSize} bytes`,
-  });
-  const optimizedHtml = optimizeHtmlForOpenAI(html);
-  const optimizedSize = optimizedHtml.length;
+  // Optimize HTML to reduce context size (if enabled)
+  let optimizedHtml = html;
+  let optimizedSize = htmlSize;
+  if (settings.scraper.optimization) {
+    log("OPENAI_API", "Optimizing HTML content...", {
+      originalSize: `${htmlSize} bytes`,
+    });
+    optimizedHtml = optimizeHtmlForOpenAI(html);
+    optimizedSize = optimizedHtml.length;
+  } else {
+    log("OPENAI_API", "HTML optimization disabled, using original HTML", {
+      size: `${htmlSize} bytes`,
+    });
+  }
 
   log("OPENAI_API", "=== OpenAI Form Analysis Started ===", {
     htmlSize: `${htmlSize} bytes`,
     optimizedSize: `${optimizedSize} bytes`,
-    reduction: `${(((htmlSize - optimizedSize) / htmlSize) * 100).toFixed(1)}%`,
-    model: "gpt-4o-mini",
+    reduction: settings.scraper.optimization
+      ? `${(((htmlSize - optimizedSize) / htmlSize) * 100).toFixed(1)}%`
+      : "0%",
+    model: settings.aiModel.model,
   });
 
   let apiKey: string;
@@ -283,16 +290,19 @@ HTML content:
 ${optimizedHtml}`;
 
   try {
+    const settings = loadSettings();
+    const model = settings.aiModel.model;
+    
     log("OPENAI_API", "Sending request to OpenAI API...", {
       promptLength: prompt.length,
-      model: "gpt-4o-mini",
+      model,
       temperature: 0.3,
     });
 
     const apiCallStartTime = Date.now();
     const completion = await Promise.race([
       openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           {
             role: "system",
@@ -307,12 +317,14 @@ ${optimizedHtml}`;
         response_format: { type: "json_object" },
         temperature: 0.3,
       }),
-      new Promise<never>((_, reject) =>
+      new Promise<never>((_, reject) => {
+        const settings = loadSettings();
+        const timeout = settings.scraper.timeout;
         setTimeout(
-          () => reject(new Error("OpenAI API call timeout after 60 seconds")),
-          60000
-        )
-      ),
+          () => reject(new Error(`OpenAI API call timeout after ${timeout}ms`)),
+          timeout
+        );
+      }),
     ]);
 
     const apiCallDuration = Date.now() - apiCallStartTime;
