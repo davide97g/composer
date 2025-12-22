@@ -385,17 +385,32 @@ const setupPageHandlers = async (
         });
 
         if (!selectedInfo || !selectedInfo.selector) {
-          log("FORM_EXTRACTION", "No element selected - waiting 5 seconds and continuing");
-          await showToast(currentPage, "Please select an element first", "warning");
+          log(
+            "FORM_EXTRACTION",
+            "No element selected - waiting 5 seconds and continuing"
+          );
+          await showToast(
+            currentPage,
+            "Please select an element first",
+            "warning"
+          );
           await currentPage.waitForTimeout(5000);
           return;
         }
 
         if (!selectedInfo.stats?.found) {
-          log("FORM_EXTRACTION", "Selected element not found in DOM - waiting 5 seconds and continuing", {
-            selector: selectedInfo.selector,
-          });
-          await showToast(currentPage, `Selected element not found. Selector: ${selectedInfo.selector}`, "warning");
+          log(
+            "FORM_EXTRACTION",
+            "Selected element not found in DOM - waiting 5 seconds and continuing",
+            {
+              selector: selectedInfo.selector,
+            }
+          );
+          await showToast(
+            currentPage,
+            `Selected element not found. Selector: ${selectedInfo.selector}`,
+            "warning"
+          );
           await currentPage.waitForTimeout(5000);
           return;
         }
@@ -432,8 +447,15 @@ const setupPageHandlers = async (
         });
 
         if (fields.length === 0) {
-          log("FORM_EXTRACTION", "No form fields detected - waiting 5 seconds and continuing");
-          await showToast(currentPage, "No form fields found in the selected element", "warning");
+          log(
+            "FORM_EXTRACTION",
+            "No form fields detected - waiting 5 seconds and continuing"
+          );
+          await showToast(
+            currentPage,
+            "No form fields found in the selected element",
+            "warning"
+          );
           await currentPage.waitForTimeout(5000);
           return;
         }
@@ -526,6 +548,40 @@ const setupPageHandlers = async (
           };
           await createProgressList(currentPage, progressItems);
         };
+
+        // Expose skip function to allow manual skipping from UI
+        let skipFieldCallback: ((fieldIndex: number) => Promise<void>) | null =
+          null;
+        await currentPage.exposeFunction(
+          "serverSkipField",
+          async (fieldIndex: number) => {
+            if (skipFieldCallback) {
+              await skipFieldCallback(fieldIndex);
+            }
+          }
+        );
+
+        // Store skip handler
+        skipFieldCallback = async (fieldIndex: number) => {
+          if (fieldIndex >= 0 && fieldIndex < fields.length) {
+            log("FORM_FILLING", "Field manually skipped by user", {
+              fieldIndex,
+              selector: fields[fieldIndex].selector,
+            });
+            if (onProgress) {
+              await onProgress(fieldIndex, "skipped");
+            }
+          }
+        };
+
+        // Make skip function available to page
+        await currentPage.evaluate(() => {
+          (window as any).qaAgentSkipField = async (fieldIndex: number) => {
+            if ((window as any).serverSkipField) {
+              await (window as any).serverSkipField(fieldIndex);
+            }
+          };
+        });
 
         const fillStartTime = Date.now();
         await fillForm(currentPage, fields, generatedValues, onProgress);
@@ -630,7 +686,11 @@ const setupPageHandlers = async (
           totalDuration: `${totalDuration}ms`,
         });
 
-        await showToast(currentPage, "Failed to extract form. Continuing...", "error");
+        await showToast(
+          currentPage,
+          "Failed to extract form. Continuing...",
+          "error"
+        );
         await currentPage.waitForTimeout(5000);
       }
     });
@@ -872,7 +932,11 @@ const setupPageHandlers = async (
               totalDuration: `${totalDuration}ms`,
             });
 
-            await showToast(currentPage, "Failed to automatically extract form. Continuing...", "error");
+            await showToast(
+              currentPage,
+              "Failed to automatically extract form. Continuing...",
+              "error"
+            );
             await currentPage.waitForTimeout(5000);
             await currentPage.evaluate(() => {
               const button = document.getElementById("qa-agent-detect-btn");
@@ -923,8 +987,15 @@ const setupPageHandlers = async (
           const fields = await detectForm(currentPage, formIndex);
 
           if (fields.length === 0) {
-            log("MANUAL_FORM_DETECTION", "No form fields detected - waiting 5 seconds and continuing");
-            await showToast(currentPage, "No form fields detected on this page", "warning");
+            log(
+              "MANUAL_FORM_DETECTION",
+              "No form fields detected - waiting 5 seconds and continuing"
+            );
+            await showToast(
+              currentPage,
+              "No form fields detected on this page",
+              "warning"
+            );
             await currentPage.waitForTimeout(5000);
             return;
           }
@@ -1057,6 +1128,10 @@ export const startBrowserSession = async (
       currentPage = await currentContext.newPage();
       log("BROWSER_SESSION", "Created new page");
     }
+
+    // Set default timeout for all page operations to 5 seconds
+    currentPage.setDefaultTimeout(5000);
+    currentPage.setDefaultNavigationTimeout(5000);
 
     currentTheme = theme;
     currentBaseUrl = getBaseUrl(url);

@@ -1,9 +1,8 @@
-import { useState, useEffect } from "react";
-import { Generation, GenerationStatus } from "@composer/shared";
-import { getGenerations as getGenerationsFromStorage } from "@/lib/storage";
-import { getGenerations as getGenerationsFromAPI } from "@/lib/api";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { getGenerations as getGenerationsFromAPI } from "@/lib/api";
+import { getGenerations as getGenerationsFromStorage } from "@/lib/storage";
+import { Generation, GenerationStatus } from "@composer/shared";
+import { useEffect, useState } from "react";
 
 interface GenerationsTabProps {
   baseUrl: string;
@@ -55,10 +54,12 @@ const getStatusIcon = (status: GenerationStatus): string => {
   }
 };
 
-export const GenerationsTab = ({ baseUrl, websiteUrl }: GenerationsTabProps) => {
+export const GenerationsTab = ({ baseUrl }: GenerationsTabProps) => {
   const [generations, setGenerations] = useState<Generation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
+  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     const loadGenerations = async () => {
@@ -131,7 +132,9 @@ export const GenerationsTab = ({ baseUrl, websiteUrl }: GenerationsTabProps) => 
                 <div className="flex gap-2">
                   {generation.screenshotBefore && (
                     <button
-                      onClick={() => setSelectedScreenshot(generation.screenshotBefore!)}
+                      onClick={() =>
+                        setSelectedScreenshot(generation.screenshotBefore!)
+                      }
                       className="relative group"
                     >
                       <img
@@ -146,7 +149,9 @@ export const GenerationsTab = ({ baseUrl, websiteUrl }: GenerationsTabProps) => 
                   )}
                   {generation.screenshotAfter && (
                     <button
-                      onClick={() => setSelectedScreenshot(generation.screenshotAfter!)}
+                      onClick={() =>
+                        setSelectedScreenshot(generation.screenshotAfter!)
+                      }
                       className="relative group"
                     >
                       <img
@@ -210,4 +215,3 @@ export const GenerationsTab = ({ baseUrl, websiteUrl }: GenerationsTabProps) => 
     </>
   );
 };
-

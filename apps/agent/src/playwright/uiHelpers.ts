@@ -243,7 +243,7 @@ export const createProgressList = async (
         "transition: all 0.3s ease;";
       const statusColors = {
         todo: { border: "#6c757d", bg: "#f8f9fa", icon: "○" },
-        in_progress: { border: "#007bff", bg: "#e7f3ff", icon: "⟳" },
+        in_progress: { border: "#007bff", bg: "#e7f3ff", icon: "" },
         done: { border: "#28a745", bg: "#d4edda", icon: "✓" },
         error: { border: "#dc3545", bg: "#f8d7da", icon: "✕" },
         skipped: { border: "#ffc107", bg: "#fff3cd", icon: "⚠" },
@@ -253,55 +253,48 @@ export const createProgressList = async (
         li.style.borderLeftColor = status.border;
         li.style.backgroundColor = status.bg;
       }
-      
-      // Add glowing border and spinning icon for in_progress items
+
+      // Add progress bar for error items
+      if (item.status === "error") {
+        li.style.position = "relative";
+        li.style.overflow = "hidden";
+        const progressBar = document.createElement("div");
+        progressBar.className = "qa-agent-error-progress-bar";
+        progressBar.style.cssText =
+          "position: absolute;" +
+          "bottom: 0;" +
+          "left: 0;" +
+          "height: 3px;" +
+          "background-color: #dc3545;" +
+          "width: 100%;" +
+          "transform-origin: left;" +
+          "animation: qa-agent-progress-decrease 5s linear forwards;";
+        li.appendChild(progressBar);
+      }
+
+      // Add glowing skeleton effect and spinning icon for in_progress items
       if (item.status === "in_progress") {
         li.style.position = "relative";
-        li.style.overflow = "visible";
-        // Add glowing border animation using a rotating gradient
-        const glowBorder = document.createElement("div");
-        glowBorder.className = "qa-agent-progress-glow-border";
-        glowBorder.style.cssText =
-          "position: absolute;" +
-          "top: -3px;" +
-          "left: -3px;" +
-          "right: -3px;" +
-          "bottom: -3px;" +
-          "border-radius: 8px;" +
-          "background: conic-gradient(from 0deg, #007bff, #00d4ff, #007bff, #00d4ff, #007bff);" +
-          "animation: qa-agent-glow-border-rotate 2s linear infinite;" +
-          "z-index: -1;" +
-          "filter: blur(1px);";
-        li.appendChild(glowBorder);
-        
-        // Add inner border to create the glowing effect
-        const innerBorder = document.createElement("div");
-        innerBorder.style.cssText =
+        li.style.overflow = "hidden";
+        // Add skeleton shimmer effect
+        const skeletonShimmer = document.createElement("div");
+        skeletonShimmer.className = "qa-agent-skeleton-shimmer";
+        skeletonShimmer.style.cssText =
           "position: absolute;" +
           "top: 0;" +
-          "left: 0;" +
-          "right: 0;" +
-          "bottom: 0;" +
-          "border-radius: 6px;" +
-          "background: " + status.bg + ";" +
-          "margin: 3px;" +
-          "z-index: -1;";
-        li.appendChild(innerBorder);
-        
-        // Add additional glow effect
-        const glowShadow = document.createElement("div");
-        glowShadow.style.cssText =
-          "position: absolute;" +
-          "top: -3px;" +
-          "left: -3px;" +
-          "right: -3px;" +
-          "bottom: -3px;" +
-          "border-radius: 8px;" +
-          "box-shadow: 0 0 10px rgba(0, 123, 255, 0.6), 0 0 20px rgba(0, 212, 255, 0.4);" +
-          "animation: qa-agent-glow-pulse 2s ease-in-out infinite;" +
-          "z-index: -2;" +
+          "left: -100%;" +
+          "width: 100%;" +
+          "height: 100%;" +
+          "background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);" +
+          "animation: qa-agent-skeleton-shimmer 2s ease-in-out infinite;" +
+          "z-index: 1;" +
           "pointer-events: none;";
-        li.appendChild(glowShadow);
+        li.appendChild(skeletonShimmer);
+
+        // Add subtle glow border
+        li.style.boxShadow =
+          "0 0 15px rgba(0, 123, 255, 0.3), 0 0 30px rgba(0, 123, 255, 0.15)";
+        li.style.animation = "qa-agent-skeleton-glow 2s ease-in-out infinite";
       }
       // Store selector for click handler
       if (item.selector) {
@@ -347,10 +340,26 @@ export const createProgressList = async (
       if (status) {
         iconSpan.textContent = status.icon;
       }
-      // Add spinning animation for in_progress items
+      // Add loading dots for in_progress items
       if (item.status === "in_progress") {
-        iconSpan.style.display = "inline-block";
-        iconSpan.style.animation = "qa-agent-icon-spin 1s linear infinite";
+        iconSpan.innerHTML = "";
+        iconSpan.style.display = "inline-flex";
+        iconSpan.style.alignItems = "center";
+        iconSpan.style.gap = "4px";
+        iconSpan.style.fontSize = "16px";
+        iconSpan.style.color = "#007bff";
+        // Create three dots
+        for (let i = 0; i < 3; i++) {
+          const dot = document.createElement("span");
+          dot.textContent = "•";
+          dot.style.cssText =
+            "display: inline-block;" +
+            "animation: qa-agent-dot-bounce 1.4s ease-in-out infinite;" +
+            "animation-delay: " +
+            i * 0.16 +
+            "s;";
+          iconSpan.appendChild(dot);
+        }
       }
       const labelSpan = document.createElement("span");
       try {
@@ -362,6 +371,53 @@ export const createProgressList = async (
       labelDiv.appendChild(iconSpan);
       labelDiv.appendChild(document.createTextNode(" "));
       labelDiv.appendChild(labelSpan);
+
+      // Add skip button for in_progress items
+      if (item.status === "in_progress") {
+        const skipButton = document.createElement("button");
+        skipButton.className = "qa-agent-skip-button";
+        skipButton.innerHTML = "⏭";
+        skipButton.title = "Skip this field";
+        skipButton.style.cssText =
+          "position: absolute;" +
+          "top: 8px;" +
+          "right: 8px;" +
+          "width: 24px;" +
+          "height: 24px;" +
+          "border: none;" +
+          "background-color: rgba(255, 193, 7, 0.2);" +
+          "color: #ffc107;" +
+          "border-radius: 4px;" +
+          "cursor: pointer;" +
+          "font-size: 14px;" +
+          "display: flex;" +
+          "align-items: center;" +
+          "justify-content: center;" +
+          "transition: all 0.2s ease;" +
+          "z-index: 10;" +
+          "padding: 0;";
+        skipButton.addEventListener("mouseenter", function () {
+          this.style.backgroundColor = "rgba(255, 193, 7, 0.4)";
+          this.style.transform = "scale(1.1)";
+        });
+        skipButton.addEventListener("mouseleave", function () {
+          this.style.backgroundColor = "rgba(255, 193, 7, 0.2)";
+          this.style.transform = "scale(1)";
+        });
+        skipButton.addEventListener("click", function (e) {
+          e.stopPropagation();
+          const fieldIndex = parseInt(
+            this.getAttribute("data-field-index") || "0"
+          );
+          const skipFn = (window as any).qaAgentSkipField;
+          if (skipFn && typeof skipFn === "function") {
+            skipFn(fieldIndex);
+          }
+        });
+        skipButton.setAttribute("data-field-index", String(index));
+        li.appendChild(skipButton);
+      }
+
       const valueDiv = document.createElement("div");
       valueDiv.style.cssText =
         "font-size: 12px;" +
@@ -378,36 +434,44 @@ export const createProgressList = async (
     });
     container.appendChild(list);
     document.body.appendChild(container);
-    
+
     // Add CSS animations for glowing border and spinning icon
     if (!document.getElementById("qa-agent-progress-animations")) {
       const style = document.createElement("style");
       style.id = "qa-agent-progress-animations";
       style.textContent =
-        "@keyframes qa-agent-glow-border-rotate {" +
-        "  from {" +
-        "    transform: rotate(0deg);" +
+        "@keyframes qa-agent-skeleton-shimmer {" +
+        "  0% {" +
+        "    left: -100%;" +
         "  }" +
-        "  to {" +
-        "    transform: rotate(360deg);" +
+        "  100% {" +
+        "    left: 100%;" +
         "  }" +
         "}" +
-        "@keyframes qa-agent-glow-pulse {" +
+        "@keyframes qa-agent-skeleton-glow {" +
         "  0%, 100% {" +
-        "    opacity: 0.8;" +
-        "    box-shadow: 0 0 10px rgba(0, 123, 255, 0.6), 0 0 20px rgba(0, 212, 255, 0.4);" +
+        "    box-shadow: 0 0 15px rgba(0, 123, 255, 0.3), 0 0 30px rgba(0, 123, 255, 0.15);" +
         "  }" +
         "  50% {" +
-        "    opacity: 1;" +
-        "    box-shadow: 0 0 20px rgba(0, 123, 255, 0.9), 0 0 40px rgba(0, 212, 255, 0.6);" +
+        "    box-shadow: 0 0 25px rgba(0, 123, 255, 0.5), 0 0 50px rgba(0, 123, 255, 0.25);" +
         "  }" +
         "}" +
-        "@keyframes qa-agent-icon-spin {" +
+        "@keyframes qa-agent-dot-bounce {" +
+        "  0%, 80%, 100% {" +
+        "    transform: scale(0.8);" +
+        "    opacity: 0.5;" +
+        "  }" +
+        "  40% {" +
+        "    transform: scale(1.2);" +
+        "    opacity: 1;" +
+        "  }" +
+        "}" +
+        "@keyframes qa-agent-progress-decrease {" +
         "  from {" +
-        "    transform: rotate(0deg);" +
+        "    transform: scaleX(1);" +
         "  }" +
         "  to {" +
-        "    transform: rotate(360deg);" +
+        "    transform: scaleX(0);" +
         "  }" +
         "}";
       document.head.appendChild(style);

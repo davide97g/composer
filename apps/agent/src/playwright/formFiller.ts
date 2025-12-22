@@ -1,5 +1,5 @@
-import { Page } from "playwright";
 import { FormField } from "@composer/shared";
+import { Page } from "playwright";
 
 /**
  * Helper function for consistent logging with timestamps
@@ -30,7 +30,11 @@ const logError = (step: string, message: string, error: unknown): void => {
 /**
  * Callback type for progress updates
  */
-export type ProgressCallback = (fieldIndex: number, status: "todo" | "in_progress" | "done" | "error" | "skipped", error?: Error) => Promise<void>;
+export type ProgressCallback = (
+  fieldIndex: number,
+  status: "todo" | "in_progress" | "done" | "error" | "skipped",
+  error?: Error
+) => Promise<void>;
 
 /**
  * Fill form fields using Playwright actions
@@ -85,16 +89,22 @@ export const fillForm = async (
       });
 
       // Try data-testid selector first (most reliable)
-      let element = await page.$(field.selector);
-      
+      let element = await page
+        .waitForSelector(field.selector, { state: "attached" })
+        .catch(() => null);
+
       // If not found and we have alternative selector, try that
       if (!element && (field as any).alternativeSelector) {
         log("FORM_FILLING", "Trying alternative selector", {
           alternativeSelector: (field as any).alternativeSelector,
         });
-        element = await page.$((field as any).alternativeSelector);
+        element = await page
+          .waitForSelector((field as any).alternativeSelector, {
+            state: "attached",
+          })
+          .catch(() => null);
       }
-      
+
       // Last resort: try by name attribute
       if (!element && field.label) {
         // Try to find by label text (less reliable but sometimes works)
@@ -111,15 +121,17 @@ export const fillForm = async (
             }
             return null;
           }, field.label);
-          
+
           if (nameMatch) {
-            element = await page.$(nameMatch);
+            element = await page
+              .waitForSelector(nameMatch, { state: "attached" })
+              .catch(() => null);
           }
         } catch (e) {
           // Ignore errors in fallback
         }
       }
-      
+
       if (!element) {
         log("FORM_FILLING", "Field not found with any selector", {
           selector: field.selector,
@@ -160,7 +172,7 @@ export const fillForm = async (
             }
             return "";
           });
-          
+
           if (value === "true" || value === currentValue) {
             await element.check();
             filledCount++;
@@ -218,7 +230,11 @@ export const fillForm = async (
             });
             errorCount++;
             if (onProgress) {
-              await onProgress(fieldIndex, "error", e2 instanceof Error ? e2 : new Error(String(e2)));
+              await onProgress(
+                fieldIndex,
+                "error",
+                e2 instanceof Error ? e2 : new Error(String(e2))
+              );
             }
           }
         }
@@ -236,7 +252,11 @@ export const fillForm = async (
       });
       errorCount++;
       if (onProgress) {
-        await onProgress(fieldIndex, "error", error instanceof Error ? error : new Error(String(error)));
+        await onProgress(
+          fieldIndex,
+          "error",
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     }
   }
@@ -248,4 +268,3 @@ export const fillForm = async (
     totalDuration: `${totalDuration}ms`,
   });
 };
-
