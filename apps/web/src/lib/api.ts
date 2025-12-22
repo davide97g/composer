@@ -1,13 +1,43 @@
 import { Theme } from "@composer/shared";
 
-const AGENT_API_URL = "http://localhost:3001/api";
+// Type definition for Electron API
+declare global {
+  interface Window {
+    electronAPI?: {
+      getApiUrl: () => Promise<string>;
+      getBackendStatus: () => Promise<{ running: boolean }>;
+    };
+  }
+}
+
+// Get API URL from Electron if available, otherwise use default
+let cachedApiUrl: string | null = null;
+
+const getApiUrl = async (): Promise<string> => {
+  if (cachedApiUrl) {
+    return cachedApiUrl;
+  }
+
+  if (typeof window !== "undefined" && window.electronAPI) {
+    try {
+      cachedApiUrl = await window.electronAPI.getApiUrl();
+      return cachedApiUrl;
+    } catch (error) {
+      console.error("Failed to get API URL from Electron:", error);
+    }
+  }
+  
+  cachedApiUrl = "http://localhost:3001/api";
+  return cachedApiUrl;
+};
 
 export const startAgent = async (
   url: string,
   theme: Theme | string,
   customPrompt?: string
 ): Promise<void> => {
-  const response = await fetch(`${AGENT_API_URL}/start`, {
+  const apiUrl = await getApiUrl();
+  const response = await fetch(`${apiUrl}/start`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -22,8 +52,9 @@ export const startAgent = async (
 
 export const getNavigationHistory = async (baseUrl: string): Promise<string[]> => {
   try {
+    const apiUrl = await getApiUrl();
     const encodedBaseUrl = encodeURIComponent(baseUrl);
-    const response = await fetch(`${AGENT_API_URL}/navigation/${encodedBaseUrl}`);
+    const response = await fetch(`${apiUrl}/navigation/${encodedBaseUrl}`);
     
     if (!response.ok) {
       return [];
@@ -38,7 +69,8 @@ export const getNavigationHistory = async (baseUrl: string): Promise<string[]> =
 
 export const getAvailableModels = async (): Promise<string[]> => {
   try {
-    const response = await fetch(`${AGENT_API_URL}/models`);
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/models`);
     
     if (!response.ok) {
       return [];
@@ -53,7 +85,8 @@ export const getAvailableModels = async (): Promise<string[]> => {
 
 export const saveSettingsToAgent = async (settings: unknown): Promise<void> => {
   try {
-    const response = await fetch(`${AGENT_API_URL}/settings`, {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/settings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

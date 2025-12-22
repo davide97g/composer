@@ -11,3 +11,17 @@ build
 .env.local
 .env.*.local
 
+# Electron build outputs
+apps/electron/release/
+apps/electron/dist/
+*.dmg
+*.dmg.blockmap
+*.app
+*.asar
+*.asar.unpacked
+builder-debug.yml
+builder-effective-config.yaml
+
+# Electron-builder cache
+.electron-builder-cache/
+

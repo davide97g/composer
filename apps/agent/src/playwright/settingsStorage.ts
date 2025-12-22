@@ -1,9 +1,18 @@
-import { existsSync, readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-import { mkdir } from "fs/promises";
 import { DEFAULT_SETTINGS, Settings } from "@composer/shared";
+import { existsSync, readFileSync, writeFileSync } from "fs";
+import { mkdir } from "fs/promises";
+import { homedir } from "os";
+import { join } from "path";
 
-const SETTINGS_DIR = join(process.cwd(), ".composer");
+// Get settings directory - use home directory for better cross-platform support
+// In packaged apps, process.cwd() might not be writable, so use home directory
+const getSettingsDir = (): string => {
+  // Always use home directory for consistency and to ensure writability
+  // This works in both development and packaged Electron apps
+  return join(homedir(), ".composer");
+};
+
+const SETTINGS_DIR = getSettingsDir();
 const SETTINGS_FILE = join(SETTINGS_DIR, "settings.json");
 
 /**
@@ -76,4 +85,3 @@ export const getApiKey = (): string => {
   }
   return apiKey;
 };
-
