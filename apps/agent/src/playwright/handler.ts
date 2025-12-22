@@ -4,9 +4,24 @@ import { createPersistentContext, navigateToUrl } from "./browser";
 import { generateFakeData } from "./fakeDataGenerator";
 import { detectForm, detectFormFromElement } from "./formDetector";
 import { fillForm, ProgressCallback } from "./formFiller";
-import { activateInputMode, activatePointerMode, deactivateInputMode, deactivatePointerMode, injectFloatingButton } from "./injector";
-import { loadNavigationHistory, saveNavigationHistory } from "./navigationStorage";
-import { addGlowingEffect, createProgressList, removeGlowingEffect, removeProgressList, showToast } from "./uiHelpers";
+import {
+  activateInputMode,
+  activatePointerMode,
+  deactivateInputMode,
+  deactivatePointerMode,
+  injectFloatingButton,
+} from "./injector";
+import {
+  loadNavigationHistory,
+  saveNavigationHistory,
+} from "./navigationStorage";
+import {
+  addGlowingEffect,
+  createProgressList,
+  removeGlowingEffect,
+  removeProgressList,
+  showToast,
+} from "./uiHelpers";
 
 /**
  * Helper function for consistent logging with timestamps
@@ -59,7 +74,10 @@ const getBaseUrl = (url: string): string => {
 /**
  * Add URL to navigation history for a base URL (keeps last 5)
  */
-const addToNavigationHistory = async (baseUrl: string, url: string): Promise<void> => {
+const addToNavigationHistory = async (
+  baseUrl: string,
+  url: string
+): Promise<void> => {
   const startTime = Date.now();
   log("NAVIGATION", "Adding URL to navigation history", { baseUrl, url });
 
@@ -75,7 +93,10 @@ const addToNavigationHistory = async (baseUrl: string, url: string): Promise<voi
     const index = history.indexOf(url);
     if (index > -1) {
       history.splice(index, 1);
-      log("NAVIGATION", "Removed duplicate URL from history", { baseUrl, index });
+      log("NAVIGATION", "Removed duplicate URL from history", {
+        baseUrl,
+        index,
+      });
     }
 
     // Add to front
@@ -125,7 +146,10 @@ export const getNavigationHistory = (baseUrl: string): string[] => {
   return navigationHistory.get(baseUrl) || [];
 };
 
-const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<void> => {
+const setupPageHandlers = async (
+  page: Page,
+  theme: Theme | string
+): Promise<void> => {
   // Update current theme
   currentTheme = theme;
 
@@ -168,7 +192,9 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
 
     await page.exposeFunction("serverExtractForm", async () => {
       const startTime = Date.now();
-      console.log("[FORM_EXTRACTION] ========== EXTRACT BUTTON CLICKED ==========");
+      console.log(
+        "[FORM_EXTRACTION] ========== EXTRACT BUTTON CLICKED =========="
+      );
       log("FORM_EXTRACTION", "=== Form Extraction Started ===", {
         theme: currentTheme,
         pageUrl: currentPage?.url(),
@@ -210,34 +236,42 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
             const element = document.querySelector(selected.selector);
             if (element) {
               const rect = element.getBoundingClientRect();
-              const inputs = element.querySelectorAll("input, textarea, select");
+              const inputs = element.querySelectorAll(
+                "input, textarea, select"
+              );
               const allElements = element.querySelectorAll("*");
-              
+
               const inputDetails = Array.from(inputs).map((el: any) => {
                 const inputInfo: any = {
                   tagName: el.tagName,
-                  type: el.tagName === "INPUT" ? (el.type || "text") : el.tagName.toLowerCase(),
+                  type:
+                    el.tagName === "INPUT"
+                      ? el.type || "text"
+                      : el.tagName.toLowerCase(),
                   id: el.id || null,
                   name: el.name || null,
                   placeholder: el.placeholder || null,
                   required: el.hasAttribute("required"),
                 };
-                
+
                 // Try to find label
                 let label = null;
                 if (el.id) {
-                  const labelEl = document.querySelector("label[for=\"" + el.id + "\"]");
+                  const labelEl = document.querySelector(
+                    'label[for="' + el.id + '"]'
+                  );
                   if (labelEl) label = labelEl.textContent?.trim() || null;
                 }
                 if (!label) {
                   const parentLabel = el.closest("label");
-                  if (parentLabel) label = parentLabel.textContent?.trim() || null;
+                  if (parentLabel)
+                    label = parentLabel.textContent?.trim() || null;
                 }
                 inputInfo.label = label;
-                
+
                 return inputInfo;
               });
-              
+
               elementStats = {
                 found: true,
                 tagName: element.tagName,
@@ -317,9 +351,15 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         });
 
         // Detect form fields from selected element
-        log("FORM_EXTRACTION", "Step 3: Detecting form fields from selected element...");
+        log(
+          "FORM_EXTRACTION",
+          "Step 3: Detecting form fields from selected element..."
+        );
         const detectionStartTime = Date.now();
-        const fields = await detectFormFromElement(currentPage, selectedInfo.selector);
+        const fields = await detectFormFromElement(
+          currentPage,
+          selectedInfo.selector
+        );
         const detectionDuration = Date.now() - detectionStartTime;
 
         log("FORM_EXTRACTION", "Step 3: Form field detection completed", {
@@ -354,27 +394,39 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         log("FORM_EXTRACTION", "Step 4: Fake data generation completed", {
           valuesCount: Object.keys(generatedValues).length,
           duration: `${generationDuration}ms`,
-          sampleValues: Object.entries(generatedValues).slice(0, 3).map(([key, value]) => ({
-            selector: key,
-            value: value.length > 50 ? value.substring(0, 50) + "..." : value,
-          })),
+          sampleValues: Object.entries(generatedValues)
+            .slice(0, 3)
+            .map(([key, value]) => ({
+              selector: key,
+              value: value.length > 50 ? value.substring(0, 50) + "..." : value,
+            })),
         });
 
         // Fill the form
         await showToast(currentPage, "Filling form...", "info");
         log("FORM_EXTRACTION", "Step 5: Filling form with generated values...");
-        
+
         // Create progress list
-        const progressItems = fields.map((field) => ({
+        const progressItems: Array<{
+          label: string;
+          value: string;
+          status: "todo" | "in_progress" | "done" | "error" | "skipped";
+          selector: string;
+        }> = fields.map((field) => ({
           label: field.label || "Unnamed field",
           value: generatedValues[field.selector] || "",
-          status: "todo" as const,
+          status: "todo",
           selector: field.selector,
         }));
         await createProgressList(currentPage, progressItems);
 
         // Progress callback
-        const onProgress: ProgressCallback = async (fieldIndex, status, error) => {
+        const onProgress: ProgressCallback = async (
+          fieldIndex,
+          status,
+          error
+        ) => {
+          if (!currentPage) return;
           const field = fields[fieldIndex];
           progressItems[fieldIndex] = {
             label: field.label || "Unnamed field",
@@ -404,7 +456,11 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         await removeProgressList(currentPage);
 
         // Show success toast
-        await showToast(currentPage, `Form filled successfully with theme: ${currentTheme}`, "success");
+        await showToast(
+          currentPage,
+          `Form filled successfully with theme: ${currentTheme}`,
+          "success"
+        );
 
         // Deactivate input mode
         await deactivateInputMode(currentPage);
@@ -423,18 +479,22 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         });
 
         const totalDuration = Date.now() - startTime;
-        log("FORM_EXTRACTION", "=== Form Extraction Completed Successfully ===", {
-          totalDuration: `${totalDuration}ms`,
-          theme: currentTheme,
-          fieldsDetected: fields.length,
-        });
+        log(
+          "FORM_EXTRACTION",
+          "=== Form Extraction Completed Successfully ===",
+          {
+            totalDuration: `${totalDuration}ms`,
+            theme: currentTheme,
+            fieldsDetected: fields.length,
+          }
+        );
       } catch (error) {
         const totalDuration = Date.now() - startTime;
         logError("FORM_EXTRACTION", "Form extraction failed", error);
         log("FORM_EXTRACTION", "=== Form Extraction Failed ===", {
           totalDuration: `${totalDuration}ms`,
         });
-        
+
         await currentPage.evaluate(() => {
           alert("Failed to extract form. Please try again.");
         });
@@ -460,9 +520,9 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         // Step 1: Activate pointer mode (analyzes forms with LLM)
         log("FORM_DETECTION", "Step 1: Starting LLM form analysis...");
         const analysisStartTime = Date.now();
-        
+
         await activatePointerMode(currentPage);
-        
+
         const analysisDuration = Date.now() - analysisStartTime;
         log("FORM_DETECTION", `Step 1: LLM analysis completed`, {
           duration: `${analysisDuration}ms`,
@@ -471,12 +531,14 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         // Step 2: Check if forms were detected
         log("FORM_DETECTION", "Step 2: Checking for detected forms...");
         const checkStartTime = Date.now();
-        
+
         const hasForms = await currentPage.evaluate(() => {
-          return !!(window as any).qaAgentOpenAIForms && 
-                 (window as any).qaAgentOpenAIForms.length > 0;
+          return (
+            !!(window as any).qaAgentOpenAIForms &&
+            (window as any).qaAgentOpenAIForms.length > 0
+          );
         });
-        
+
         const checkDuration = Date.now() - checkStartTime;
         log("FORM_DETECTION", `Step 2: Form check completed`, {
           hasForms,
@@ -495,9 +557,13 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
             }
           });
           const totalDuration = Date.now() - startTime;
-          log("FORM_DETECTION", "=== Form Detection Workflow Completed (No Forms) ===", {
-            totalDuration: `${totalDuration}ms`,
-          });
+          log(
+            "FORM_DETECTION",
+            "=== Form Detection Workflow Completed (No Forms) ===",
+            {
+              totalDuration: `${totalDuration}ms`,
+            }
+          );
           return;
         }
 
@@ -524,10 +590,10 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
             log("FORM_DETECTION", "Step 3a: Detecting form fields...", {
               formIndex: 0,
             });
-            
+
             const fields = await detectForm(currentPage, 0);
             const detectionDuration = Date.now() - extractionStartTime;
-            
+
             log("FORM_DETECTION", `Step 3a: Form detection completed`, {
               fieldsCount: fields.length,
               duration: `${detectionDuration}ms`,
@@ -553,10 +619,13 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
               fieldsCount: fields.length,
             });
             const generationStartTime = Date.now();
-            
-            const generatedValues = await generateFakeData(fields, currentTheme);
+
+            const generatedValues = await generateFakeData(
+              fields,
+              currentTheme
+            );
             const generationDuration = Date.now() - generationStartTime;
-            
+
             log("FORM_DETECTION", `Step 3b: Data generation completed`, {
               generatedFieldsCount: Object.keys(generatedValues).length,
               duration: `${generationDuration}ms`,
@@ -579,7 +648,10 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
               })),
               generatedValues,
             });
-            console.log(`[Theme: ${currentTheme}] Form Detection Results:`, JSON.stringify(formData, null, 2));
+            console.log(
+              `[Theme: ${currentTheme}] Form Detection Results:`,
+              JSON.stringify(formData, null, 2)
+            );
 
             // Step 3e: Reset button state
             log("FORM_DETECTION", "Step 3e: Resetting button state...");
@@ -614,7 +686,7 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
                 box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
                 animation: slideIn 0.3s ease-out;
               `;
-              
+
               // Add animation
               if (!document.getElementById("qa-agent-notification-styles")) {
                 const style = document.createElement("style");
@@ -633,31 +705,36 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
                 `;
                 document.head.appendChild(style);
               }
-              
+
               document.body.appendChild(notification);
-              
+
               // Remove notification after 5 seconds
               setTimeout(() => {
                 if (notification.parentNode) {
-                  notification.style.animation = "slideIn 0.3s ease-out reverse";
+                  notification.style.animation =
+                    "slideIn 0.3s ease-out reverse";
                   setTimeout(() => notification.remove(), 300);
                 }
               }, 5000);
             }, currentTheme);
 
             const totalDuration = Date.now() - startTime;
-            log("FORM_DETECTION", "=== Form Detection Workflow Completed Successfully ===", {
-              totalDuration: `${totalDuration}ms`,
-              theme: currentTheme,
-              fieldsDetected: fields.length,
-            });
+            log(
+              "FORM_DETECTION",
+              "=== Form Detection Workflow Completed Successfully ===",
+              {
+                totalDuration: `${totalDuration}ms`,
+                theme: currentTheme,
+                fieldsDetected: fields.length,
+              }
+            );
           } catch (error) {
             const totalDuration = Date.now() - startTime;
             logError("FORM_DETECTION", "Form extraction failed", error);
             log("FORM_DETECTION", "=== Form Detection Workflow Failed ===", {
               totalDuration: `${totalDuration}ms`,
             });
-            
+
             await currentPage.evaluate(() => {
               alert("Failed to automatically extract form. Please try again.");
               const button = document.getElementById("qa-agent-detect-btn");
@@ -684,62 +761,78 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
       await deactivatePointerMode(currentPage);
     });
 
-    await page.exposeFunction("serverDetectForm", async (formIndex?: number) => {
-      const startTime = Date.now();
-      log("MANUAL_FORM_DETECTION", "=== Manual Form Detection Started ===", {
-        formIndex,
-        theme: currentTheme,
-      });
-
-      if (!currentPage || !currentTheme) {
-        logError("MANUAL_FORM_DETECTION", "Missing required context", {
-          hasPage: !!currentPage,
-          hasTheme: !!currentTheme,
+    await page.exposeFunction(
+      "serverDetectForm",
+      async (formIndex?: number) => {
+        const startTime = Date.now();
+        log("MANUAL_FORM_DETECTION", "=== Manual Form Detection Started ===", {
+          formIndex,
+          theme: currentTheme,
         });
-        return;
-      }
 
-      try {
-        log("MANUAL_FORM_DETECTION", "Detecting form fields...", { formIndex });
-        const fields = await detectForm(currentPage, formIndex);
-
-        if (fields.length === 0) {
-          log("MANUAL_FORM_DETECTION", "No form fields detected");
-          await currentPage.evaluate(() => {
-            alert("No form fields detected on this page");
+        if (!currentPage || !currentTheme) {
+          logError("MANUAL_FORM_DETECTION", "Missing required context", {
+            hasPage: !!currentPage,
+            hasTheme: !!currentTheme,
           });
           return;
         }
 
-        log("MANUAL_FORM_DETECTION", "Generating fake data...", {
-          theme: currentTheme,
-          fieldsCount: fields.length,
-        });
-        const generatedValues = generateFakeData(fields, currentTheme);
+        try {
+          log("MANUAL_FORM_DETECTION", "Detecting form fields...", {
+            formIndex,
+          });
+          const fields = await detectForm(currentPage, formIndex);
 
-        const formData: FormData = {
-          fields,
-          generatedValues,
-        };
+          if (fields.length === 0) {
+            log("MANUAL_FORM_DETECTION", "No form fields detected");
+            await currentPage.evaluate(() => {
+              alert("No form fields detected on this page");
+            });
+            return;
+          }
 
-        log("MANUAL_FORM_DETECTION", "Form detection completed", {
-          fieldsCount: fields.length,
-          generatedValuesCount: Object.keys(generatedValues).length,
-        });
-        console.log("Form Detection Results:", JSON.stringify(formData, null, 2));
-        
-        const totalDuration = Date.now() - startTime;
-        log("MANUAL_FORM_DETECTION", "=== Manual Form Detection Completed ===", {
-          totalDuration: `${totalDuration}ms`,
-        });
-      } catch (error) {
-        const totalDuration = Date.now() - startTime;
-        logError("MANUAL_FORM_DETECTION", "Manual form detection failed", error);
-        log("MANUAL_FORM_DETECTION", "=== Manual Form Detection Failed ===", {
-          totalDuration: `${totalDuration}ms`,
-        });
+          log("MANUAL_FORM_DETECTION", "Generating fake data...", {
+            theme: currentTheme,
+            fieldsCount: fields.length,
+          });
+          const generatedValues = await generateFakeData(fields, currentTheme);
+
+          const formData: FormData = {
+            fields,
+            generatedValues,
+          };
+
+          log("MANUAL_FORM_DETECTION", "Form detection completed", {
+            fieldsCount: fields.length,
+            generatedValuesCount: Object.keys(generatedValues).length,
+          });
+          console.log(
+            "Form Detection Results:",
+            JSON.stringify(formData, null, 2)
+          );
+
+          const totalDuration = Date.now() - startTime;
+          log(
+            "MANUAL_FORM_DETECTION",
+            "=== Manual Form Detection Completed ===",
+            {
+              totalDuration: `${totalDuration}ms`,
+            }
+          );
+        } catch (error) {
+          const totalDuration = Date.now() - startTime;
+          logError(
+            "MANUAL_FORM_DETECTION",
+            "Manual form detection failed",
+            error
+          );
+          log("MANUAL_FORM_DETECTION", "=== Manual Form Detection Failed ===", {
+            totalDuration: `${totalDuration}ms`,
+          });
+        }
       }
-    });
+    );
     isFunctionExposed = true;
   }
 
@@ -760,13 +853,19 @@ const setupPageHandlers = async (page: Page, theme: Theme | string): Promise<voi
         baseUrl: frameBaseUrl,
         currentBaseUrl,
       });
-      
+
       // Only track if navigation is within the same base URL
       if (frameBaseUrl === currentBaseUrl) {
-        log("NAVIGATION", "Navigation within same base URL - adding to history");
+        log(
+          "NAVIGATION",
+          "Navigation within same base URL - adding to history"
+        );
         await addToNavigationHistory(currentBaseUrl, currentUrl);
       } else {
-        log("NAVIGATION", "Navigation to different base URL - skipping history update");
+        log(
+          "NAVIGATION",
+          "Navigation to different base URL - skipping history update"
+        );
       }
     }
   });
@@ -855,4 +954,3 @@ export const startBrowserSession = async (
     throw error;
   }
 };
-
