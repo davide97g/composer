@@ -17,7 +17,7 @@ composer/
 │   ├── web/            # Frontend React (Vite + shadcn)
 │   ├── agent/          # Backend Node.js che controlla Playwright
 │   ├── landing/        # Landing page React (Vite + shadcn)
-│   └── form-benchmark/ # Form testing benchmark app (React 19 + Vite + shadcn)
+│   └── benchmark/ # Form testing benchmark app (React 19 + Vite + shadcn)
 └── packages/
     └── shared/         # Tipi condivisi (Theme, Website, FormField)
 ```
@@ -67,7 +67,7 @@ Questo avvierà:
 
 ## Form Benchmark
 
-L'app `form-benchmark` è una suite di test per il comportamento di riempimento automatico dei form. Include 5 diversi tipi di form:
+L'app `benchmark` è una suite di test per il comportamento di riempimento automatico dei form. Include 5 diversi tipi di form:
 
 1. **Search Form**: Form con molti campi di ricerca, filtri e opzioni avanzate
 2. **Text Form**: Form con molti campi di testo e textarea per contenuti lunghi
@@ -78,7 +78,7 @@ L'app `form-benchmark` è una suite di test per il comportamento di riempimento 
 Per testare il form benchmark:
 
 ```bash
-cd apps/form-benchmark
+cd apps/benchmark
 pnpm dev
 ```
 

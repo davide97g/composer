@@ -1,5 +1,5 @@
 {
-  "name": "@composer/form-benchmark",
+  "name": "@composer/benchmark",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
