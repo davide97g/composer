@@ -1,7 +1,5 @@
-import { Page } from "playwright";
 import { FormField } from "@composer/shared";
-import { generateInputHint } from "./geminiService";
-import { detectFormFromElement } from "./formDetector";
+import { Page } from "playwright";
 
 /**
  * Helper function for consistent logging with timestamps
@@ -51,9 +49,9 @@ const isEditableInput = async (
   page: Page,
   element: Element
 ): Promise<boolean> => {
-  return await page.evaluate((el) => {
+  return await page.evaluate((el: any) => {
     const htmlEl = el as HTMLElement;
-    
+
     // Check if element is input, textarea, or select
     const tagName = htmlEl.tagName.toLowerCase();
     if (tagName !== "input" && tagName !== "textarea" && tagName !== "select") {
@@ -91,7 +89,7 @@ const isEditableInput = async (
     }
 
     return true;
-  }, element);
+  }, element as any);
 };
 
 /**
@@ -101,7 +99,7 @@ const extractInputContext = async (
   page: Page,
   element: Element
 ): Promise<InputContext | null> => {
-  return await page.evaluate((el) => {
+  return (await page.evaluate((el: any) => {
     const htmlEl = el as HTMLElement;
     const tagName = htmlEl.tagName.toLowerCase();
 
@@ -109,8 +107,11 @@ const extractInputContext = async (
       return null;
     }
 
-    const input = htmlEl as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
-    
+    const input = htmlEl as
+      | HTMLInputElement
+      | HTMLTextAreaElement
+      | HTMLSelectElement;
+
     let type = tagName;
     if (tagName === "input") {
       type = (input as HTMLInputElement).type || "text";
@@ -175,7 +176,7 @@ const extractInputContext = async (
       id: input.id || undefined,
       required: input.hasAttribute("required"),
     };
-  }, element);
+  }, element as any)) as InputContext | null;
 };
 
 /**
@@ -185,7 +186,7 @@ const findFormContainer = async (
   page: Page,
   element: Element
 ): Promise<string | null> => {
-  return await page.evaluate((el) => {
+  return await page.evaluate((el: any) => {
     let current: Element | null = el as Element;
 
     // First, try to find a <form> element
@@ -238,7 +239,7 @@ const findFormContainer = async (
     }
 
     return null;
-  }, element);
+  }, element as any);
 };
 
 /**
@@ -730,4 +731,3 @@ export const deactivateGhostWriter = async (page: Page): Promise<void> => {
     totalDuration: `${totalDuration}ms`,
   });
 };
-

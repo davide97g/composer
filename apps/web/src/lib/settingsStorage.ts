@@ -26,6 +26,10 @@ export const getSettings = (): Settings => {
         ...DEFAULT_SETTINGS.filler,
         ...settings.filler,
       },
+      ghostWriter: {
+        ...DEFAULT_SETTINGS.ghostWriter,
+        ...settings.ghostWriter,
+      },
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -47,5 +51,3 @@ export const getApiKey = (): string => {
   const settings = getSettings();
   return settings.aiModel.apiKey || "";
 };
-
-
