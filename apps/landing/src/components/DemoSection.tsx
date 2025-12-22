@@ -1,4 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "lucide-react";
 
 export const DemoSection = () => {
   return (
@@ -12,6 +14,35 @@ export const DemoSection = () => {
             Watch how easy it is to automate form testing with intelligent
             detection and data generation.
           </p>
+        </div>
+
+        <div className="mb-12">
+          <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+            <CardContent className="p-8">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-2xl font-bold mb-2">
+                    Try It Yourself
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    Test Composer on our internal benchmark website. This is a dedicated testing environment where you can see the tool in action and evaluate its capabilities.
+                  </p>
+                  <p className="text-sm text-muted-foreground/80">
+                    Internal benchmark • Test the tool against real forms
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  className="whitespace-nowrap"
+                  onClick={() => window.open("https://composer-benchmark.davideghiotto.it", "_blank")}
+                  aria-label="Open benchmark website in new tab"
+                >
+                  Visit Benchmark
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 mb-12">
