@@ -2,6 +2,12 @@
 
 Marketing landing page for Composer - AI-Powered QA Form Agent.
 
+## Repository
+
+GitHub: [https://github.com/yourusername/composer](https://github.com/yourusername/composer)
+
+> **Note**: Update the GitHub URL in `src/components/Footer.tsx` with your actual repository URL.
+
 ## Development
 
 ```bash

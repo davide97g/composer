@@ -1,4 +1,4 @@
-import { Github, Twitter, Linkedin } from "lucide-react";
+import { Github, Linkedin, Twitter } from "lucide-react";
 
 export const Footer = () => {
   return (
@@ -41,6 +41,16 @@ export const Footer = () => {
           <div>
             <h4 className="font-semibold mb-4">Resources</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>
+                <a
+                  href="https://github.com/yourusername/composer"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                >
+                  GitHub
+                </a>
+              </li>
               <li>
                 <a href="#" className="hover:text-foreground transition-colors">
                   Documentation
@@ -97,7 +107,9 @@ export const Footer = () => {
           </div>
           <div className="flex gap-4">
             <a
-              href="#"
+              href="https://github.com/yourusername/composer"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
               aria-label="GitHub"
             >
@@ -123,4 +135,3 @@ export const Footer = () => {
     </footer>
   );
 };
-
