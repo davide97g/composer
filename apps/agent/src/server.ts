@@ -8,6 +8,7 @@ import {
 } from "./playwright/handler";
 import { getApiKey, saveSettings } from "./playwright/settingsStorage";
 import { addGeneration, getGenerations } from "./playwright/generationsStorage";
+import { incrementTabUsage, loadTabUsage } from "./playwright/tabUsageStorage";
 import { Generation } from "@composer/shared";
 
 const PORT = 3001;
@@ -145,6 +146,26 @@ const createExpressApp = () => {
     } catch (error) {
       console.error("Error getting generations:", error);
       res.status(500).json({ error: "Failed to get generations" });
+    }
+  });
+
+  app.post("/api/tab-usage", async (req, res) => {
+    try {
+      await incrementTabUsage();
+      res.json({ success: true, message: "Tab usage incremented" });
+    } catch (error) {
+      console.error("Error handling tab usage:", error);
+      res.status(500).json({ error: "Failed to handle tab usage" });
+    }
+  });
+
+  app.get("/api/tab-usage", (req, res) => {
+    try {
+      const timestamps = loadTabUsage();
+      res.json({ success: true, timestamps });
+    } catch (error) {
+      console.error("Error getting tab usage:", error);
+      res.status(500).json({ error: "Failed to get tab usage" });
     }
   });
 

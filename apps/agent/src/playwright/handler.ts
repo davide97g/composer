@@ -1165,6 +1165,21 @@ const setupPageHandlers = async (
             totalDuration: `${totalDuration}ms`,
           });
 
+          // Track tab usage - call the API endpoint
+          try {
+            const apiUrl = "http://localhost:3001/api";
+            await fetch(`${apiUrl}/tab-usage`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }).catch(() => {
+              // Ignore errors - tab usage tracking is non-critical
+            });
+          } catch (error) {
+            // Ignore errors - tab usage tracking is non-critical
+          }
+
           return true;
         } catch (error) {
           const totalDuration = Date.now() - startTime;

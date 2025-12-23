@@ -121,3 +121,44 @@ export const getGenerations = async (baseUrl: string): Promise<any[]> => {
   }
 };
 
+export const incrementTabUsage = async (): Promise<void> => {
+  try {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/tab-usage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      console.error("Failed to increment tab usage:", response.statusText);
+    } else {
+      // Sync tab usage from agent after incrementing
+      await syncTabUsageFromAgent();
+    }
+  } catch (error) {
+    console.error("Failed to increment tab usage:", error);
+    // Don't throw - tab usage tracking is non-critical
+  }
+};
+
+export const syncTabUsageFromAgent = async (): Promise<void> => {
+  try {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/tab-usage`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.timestamps && Array.isArray(data.timestamps)) {
+        // Import here to avoid circular dependency
+        const { syncTabUsage } = await import("./tabUsageStorage");
+        syncTabUsage(data.timestamps);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to sync tab usage from agent:", error);
+    // Don't throw - syncing is non-critical
+  }
+};
+

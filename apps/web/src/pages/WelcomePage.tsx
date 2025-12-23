@@ -1,7 +1,7 @@
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Button } from "@/components/ui/button";
-import { WebsiteList } from "@/components/WebsiteList";
+import { WebsiteListSimple } from "@/components/WebsiteListSimple";
 import { getWebsites } from "@/lib/storage";
 import { AddWebsiteDialog } from "@/pages/AddWebsiteDialog";
 import { Website } from "@composer/shared";
@@ -43,7 +43,11 @@ export const WelcomePage = () => {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <WebsiteList websites={websites} onWebsiteClick={handleRefresh} />
+          <WebsiteListSimple
+            websites={websites}
+            onWebsiteClick={handleRefresh}
+            showSeeAll={true}
+          />
           <ThemeSelector />
         </div>
       </div>
