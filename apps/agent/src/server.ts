@@ -1,15 +1,20 @@
+import { Generation } from "@composer/shared";
 import cors from "cors";
 import express from "express";
 import { createServer } from "net";
 import OpenAI from "openai";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+import { addGeneration, getGenerations } from "./playwright/generationsStorage";
 import {
   getNavigationHistory,
   startBrowserSession,
 } from "./playwright/handler";
 import { getApiKey, saveSettings } from "./playwright/settingsStorage";
-import { addGeneration, getGenerations } from "./playwright/generationsStorage";
 import { incrementTabUsage, loadTabUsage } from "./playwright/tabUsageStorage";
-import { Generation } from "@composer/shared";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const PORT = 3001;
 
@@ -42,6 +47,9 @@ const createExpressApp = () => {
   // Increase body size limit to 50MB to handle screenshots
   app.use(express.json({ limit: "50mb" }));
 
+  // Serve static files (logo)
+  app.use("/static", express.static(path.join(__dirname, "../public")));
+
   app.post("/api/start", async (req, res) => {
     try {
       const { url, theme, customPrompt, customGhostWriterPrompt } = req.body;
@@ -55,7 +63,12 @@ const createExpressApp = () => {
       }
 
       // Start browser session (non-blocking)
-      startBrowserSession(url, theme, customPrompt, customGhostWriterPrompt).catch((error) => {
+      startBrowserSession(
+        url,
+        theme,
+        customPrompt,
+        customGhostWriterPrompt
+      ).catch((error) => {
         console.error("Browser session error:", error);
       });
 
@@ -202,4 +215,3 @@ export const startServer = async (port: number = PORT): Promise<void> => {
 };
 
 export { createExpressApp };
-

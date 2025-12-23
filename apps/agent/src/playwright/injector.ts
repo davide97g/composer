@@ -142,12 +142,15 @@ const activateInputMode = async (page: Page): Promise<void> => {
       function handleElementClick(e) {
         const target = e.target;
         
-        // Check if clicking on control buttons or their container FIRST
+        // Check if clicking on control buttons, floating bar, or their container FIRST
         // This must be checked before preventDefault to allow button clicks
         if (target.id === "qa-agent-detect-btn" || 
             target.id === "qa-agent-cancel-btn" || 
             target.id === "qa-agent-extract-btn" ||
+            target.id === "qa-agent-logo" ||
+            target.id === "qa-agent-ghost-writer-btn" ||
             target.closest("#qa-agent-controls") ||
+            target.closest("#qa-agent-floating-bar") ||
             target.closest("#qa-agent-detect-btn")) {
           // Don't prevent default for control buttons - let them handle their own clicks
           return;
@@ -186,6 +189,9 @@ const activateInputMode = async (page: Page): Promise<void> => {
         selectedElement = null;
         window.qaAgentSelectedElement = null;
       };
+
+      // Set input mode flag
+      window.qaAgentInputMode = true;
 
       // Show cancel and extract buttons in floating bar
       const cancelBtn = document.getElementById("qa-agent-cancel-btn");
@@ -254,9 +260,13 @@ const activatePointerMode = async (page: Page): Promise<void> => {
 
     if (openAIForms.length === 0) {
       const totalDuration = Date.now() - startTime;
-      log("LLM_ANALYSIS", "No forms detected by LLM - waiting 5 seconds and continuing", {
-        totalDuration: `${totalDuration}ms`,
-      });
+      log(
+        "LLM_ANALYSIS",
+        "No forms detected by LLM - waiting 5 seconds and continuing",
+        {
+          totalDuration: `${totalDuration}ms`,
+        }
+      );
       await showToast(page, "No forms found on this page", "warning");
       await page.waitForTimeout(5000);
       await page.evaluate(() => {
@@ -283,9 +293,13 @@ const activatePointerMode = async (page: Page): Promise<void> => {
   } catch (error) {
     const totalDuration = Date.now() - startTime;
     logError("LLM_ANALYSIS", "LLM form analysis failed", error);
-    log("LLM_ANALYSIS", "LLM analysis failed - waiting 5 seconds and continuing", {
-      totalDuration: `${totalDuration}ms`,
-    });
+    log(
+      "LLM_ANALYSIS",
+      "LLM analysis failed - waiting 5 seconds and continuing",
+      {
+        totalDuration: `${totalDuration}ms`,
+      }
+    );
 
     const errorMessage = error instanceof Error ? error.message : String(error);
     await showToast(page, `Failed to analyze forms: ${errorMessage}`, "error");
@@ -527,6 +541,9 @@ const activatePointerMode = async (page: Page): Promise<void> => {
 const deactivateInputMode = async (page: Page): Promise<void> => {
   const deactivateCode = `
     (function() {
+      // Set input mode flag to false
+      window.qaAgentInputMode = false;
+      
       // Call cleanup function if it exists
       if (window.qaAgentInputModeCleanup) {
         window.qaAgentInputModeCleanup();
@@ -598,7 +615,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         existingBar.remove();
       }
 
-      // Load saved position from localStorage
+      // Load saved position and expanded state from localStorage
       const savedPosition = localStorage.getItem("qa-agent-control-bar-position");
       let initialTop = 20;
       let initialRight = 20;
@@ -611,57 +628,123 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           // Ignore parse errors
         }
       }
+      
+      const savedExpanded = localStorage.getItem("qa-agent-toolbar-expanded");
+      let isExpanded = savedExpanded === "true";
 
       // Create draggable floating bar
       const floatingBar = document.createElement("div");
       floatingBar.id = "qa-agent-floating-bar";
+      
+      // Function to update bar style based on expanded state
+      const updateBarStyle = function() {
+        // Get current position from CSS
+        const computedStyle = window.getComputedStyle(floatingBar);
+        const currentTop = computedStyle.top || initialTop + "px";
+        const currentRight = computedStyle.right || initialRight + "px";
+        
+        if (isExpanded) {
+          floatingBar.style.cssText = 
+            "position: fixed;" +
+            "top: " + currentTop + ";" +
+            "right: " + currentRight + ";" +
+            "z-index: 999999;" +
+            "display: flex;" +
+            "gap: 8px;" +
+            "flex-direction: row;" +
+            "align-items: center;" +
+            "background-color: white;" +
+            "border: 2px solid #007bff;" +
+            "border-radius: 8px;" +
+            "padding: 8px;" +
+            "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);" +
+            "user-select: none;" +
+            "transition: all 0.2s ease;";
+        } else {
+          floatingBar.style.cssText = 
+            "position: fixed;" +
+            "top: " + currentTop + ";" +
+            "right: " + currentRight + ";" +
+            "z-index: 999999;" +
+            "display: flex;" +
+            "gap: 0px;" +
+            "flex-direction: row;" +
+            "align-items: center;" +
+            "background-color: transparent;" +
+            "border: none;" +
+            "border-radius: 0px;" +
+            "padding: 0px;" +
+            "box-shadow: none;" +
+            "user-select: none;" +
+            "transition: all 0.2s ease;";
+        }
+      };
+      
+      // Set initial style
       floatingBar.style.cssText = 
         "position: fixed;" +
         "top: " + initialTop + "px;" +
         "right: " + initialRight + "px;" +
         "z-index: 999999;" +
         "display: flex;" +
-        "gap: 8px;" +
+        "gap: " + (isExpanded ? "8px" : "0px") + ";" +
         "flex-direction: row;" +
         "align-items: center;" +
-        "background-color: white;" +
-        "border: 2px solid #007bff;" +
-        "border-radius: 8px;" +
-        "padding: 8px;" +
-        "box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);" +
-        "user-select: none;";
+        "background-color: " + (isExpanded ? "white" : "transparent") + ";" +
+        "border: " + (isExpanded ? "2px solid #007bff" : "none") + ";" +
+        "border-radius: " + (isExpanded ? "8px" : "0px") + ";" +
+        "padding: " + (isExpanded ? "8px" : "0px") + ";" +
+        "box-shadow: " + (isExpanded ? "0 4px 12px rgba(0, 0, 0, 0.15)" : "none") + ";" +
+        "user-select: none;" +
+        "transition: all 0.2s ease;";
 
-      // Drag handle
-      const dragHandle = document.createElement("div");
-      dragHandle.textContent = "⋮⋮";
-      dragHandle.style.cssText = 
+      // Create logo image (draggable and clickable)
+      const logoImg = document.createElement("img");
+      logoImg.id = "qa-agent-logo";
+      logoImg.src = "http://127.0.0.1:3001/static/logo.png";
+      logoImg.alt = "Composer Logo";
+      logoImg.style.cssText = 
+        "width: 32px;" +
+        "height: 32px;" +
+        "border-radius: 6px;" +
         "cursor: move;" +
-        "padding: 4px 8px;" +
-        "color: #666;" +
-        "font-size: 18px;" +
-        "line-height: 1;" +
-        "user-select: none;";
+        "user-select: none;" +
+        "flex-shrink: 0;";
       
-      // Make bar draggable
+      // Make bar draggable via logo
       let isDragging = false;
       let dragStartX = 0;
       let dragStartY = 0;
       let dragStartRight = 0;
       let dragStartTop = 0;
+      let clickStartTime = 0;
+      let clickStartX = 0;
+      let clickStartY = 0;
 
-      const handleMouseDown = function(e) {
-        if (e.target === dragHandle || dragHandle.contains(e.target)) {
-          isDragging = true;
-          dragStartX = e.clientX;
-          dragStartY = e.clientY;
-          
-          // Get current CSS positioning values
-          const computedStyle = window.getComputedStyle(floatingBar);
-          dragStartRight = parseFloat(computedStyle.right) || 0;
-          dragStartTop = parseFloat(computedStyle.top) || 0;
-          
-          e.preventDefault();
-        }
+      const handleLogoMouseDown = function(e) {
+        clickStartTime = Date.now();
+        clickStartX = e.clientX;
+        clickStartY = e.clientY;
+        
+        // Check if this is a drag or click
+        const handleMouseMoveCheck = function(e) {
+          const moved = Math.abs(e.clientX - clickStartX) > 5 || Math.abs(e.clientY - clickStartY) > 5;
+          if (moved) {
+            // Start dragging
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            
+            const computedStyle = window.getComputedStyle(floatingBar);
+            dragStartRight = parseFloat(computedStyle.right) || 0;
+            dragStartTop = parseFloat(computedStyle.top) || 0;
+            
+            e.preventDefault();
+          }
+          document.removeEventListener("mousemove", handleMouseMoveCheck);
+        };
+        
+        document.addEventListener("mousemove", handleMouseMoveCheck);
       };
 
       const handleMouseMove = function(e) {
@@ -696,22 +779,43 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         }));
       };
 
-      const handleMouseUp = function() {
-        isDragging = false;
+      const handleMouseUp = function(e) {
+        if (isDragging) {
+          isDragging = false;
+        } else {
+          // Check if this was a click (not a drag) on the logo
+          const clickDuration = Date.now() - clickStartTime;
+          const moved = Math.abs(e.clientX - clickStartX) > 5 || Math.abs(e.clientY - clickStartY) > 5;
+          const clickedLogo = e.target === logoImg;
+          
+          if (clickDuration < 300 && !moved && clickedLogo) {
+            // Toggle toolbar
+            isExpanded = !isExpanded;
+            localStorage.setItem("qa-agent-toolbar-expanded", isExpanded.toString());
+            updateBarStyle();
+            updateToolbarVisibility();
+          }
+        }
       };
 
-      document.addEventListener("mousedown", handleMouseDown);
+      const handleMouseDownWrapper = function(e) {
+        if (e.target === logoImg || logoImg.contains(e.target)) {
+          handleLogoMouseDown(e);
+        }
+      };
+
+      document.addEventListener("mousedown", handleMouseDownWrapper);
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
 
       // Store cleanup
       window.qaAgentFloatingBarCleanup = function() {
-        document.removeEventListener("mousedown", handleMouseDown);
+        document.removeEventListener("mousedown", handleMouseDownWrapper);
         document.removeEventListener("mousemove", handleMouseMove);
         document.removeEventListener("mouseup", handleMouseUp);
       };
 
-      floatingBar.appendChild(dragHandle);
+      floatingBar.appendChild(logoImg);
 
       // Helper function to create button
       function createButton(id, text, bgColor, hoverColor) {
@@ -790,15 +894,47 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         e.stopPropagation();
         e.preventDefault();
         
-        if (window.serverActivatePointerMode) {
-          window.serverActivatePointerMode().catch(function(err) {
-            console.error("Error activating pointer mode:", err);
+        if (window.serverActivateInputMode) {
+          window.serverActivateInputMode().catch(function(err) {
+            console.error("Error activating input mode:", err);
           });
         }
       });
 
-      floatingBar.appendChild(ghostWriterBtn);
-      floatingBar.appendChild(detectFormBtn);
+      // Container for toolbar buttons
+      const toolbarButtons = document.createElement("div");
+      toolbarButtons.id = "qa-agent-toolbar-buttons";
+      toolbarButtons.style.cssText = 
+        "display: flex;" +
+        "gap: 8px;" +
+        "align-items: center;" +
+        "transition: all 0.2s ease;";
+      
+      toolbarButtons.appendChild(ghostWriterBtn);
+      toolbarButtons.appendChild(detectFormBtn);
+      
+      // Function to update toolbar visibility
+      const updateToolbarVisibility = function() {
+        // Update isExpanded from the variable scope
+        const currentExpanded = localStorage.getItem("qa-agent-toolbar-expanded") === "true";
+        if (currentExpanded) {
+          toolbarButtons.style.display = "flex";
+          toolbarButtons.style.opacity = "1";
+          toolbarButtons.style.maxWidth = "none";
+        } else {
+          toolbarButtons.style.display = "none";
+          toolbarButtons.style.opacity = "0";
+          toolbarButtons.style.maxWidth = "0";
+        }
+      };
+      
+      // Expose function globally for use in click handler
+      window.qaAgentUpdateToolbarVisibility = updateToolbarVisibility;
+      
+      // Initialize visibility
+      updateToolbarVisibility();
+      
+      floatingBar.appendChild(toolbarButtons);
 
       // Cancel button (shown when in input mode)
       const cancelBtn = createButton("qa-agent-cancel-btn", "Cancel", "#dc3545", "#c82333");
@@ -842,8 +978,8 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         }
       }, true);
 
-      floatingBar.appendChild(cancelBtn);
-      floatingBar.appendChild(extractBtn);
+      toolbarButtons.appendChild(cancelBtn);
+      toolbarButtons.appendChild(extractBtn);
 
       // Monitor input mode state to show/hide buttons
       function updateInputModeButtons() {
