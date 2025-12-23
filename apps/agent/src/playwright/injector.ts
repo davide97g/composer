@@ -709,7 +709,25 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         "border-radius: 6px;" +
         "cursor: move;" +
         "user-select: none;" +
-        "flex-shrink: 0;";
+        "flex-shrink: 0;" +
+        "object-fit: contain;" +
+        "border: none;" +
+        "overflow: hidden;";
+      
+      // Wrap logo in container to ensure rounded borders
+      const logoContainer = document.createElement("div");
+      logoContainer.id = "qa-agent-logo-container";
+      logoContainer.style.cssText = 
+        "width: 32px;" +
+        "height: 32px;" +
+        "border-radius: 6px;" +
+        "overflow: hidden;" +
+        "flex-shrink: 0;" +
+        "display: flex;" +
+        "align-items: center;" +
+        "justify-content: center;" +
+        "cursor: move;";
+      logoContainer.appendChild(logoImg);
       
       // Make bar draggable via logo
       let isDragging = false;
@@ -722,6 +740,11 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       let clickStartY = 0;
 
       const handleLogoMouseDown = function(e) {
+        // Only handle if clicking on logo container or logo image
+        if (e.target !== logoImg && e.target !== logoContainer && !logoContainer.contains(e.target)) {
+          return;
+        }
+        
         clickStartTime = Date.now();
         clickStartX = e.clientX;
         clickStartY = e.clientY;
@@ -786,8 +809,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           // Check if this was a click (not a drag) on the logo
           const clickDuration = Date.now() - clickStartTime;
           const moved = Math.abs(e.clientX - clickStartX) > 5 || Math.abs(e.clientY - clickStartY) > 5;
-          const clickedLogo = e.target === logoImg;
-          
+          const clickedLogo = e.target === logoImg || e.target === logoContainer || logoContainer.contains(e.target);
           if (clickDuration < 300 && !moved && clickedLogo) {
             // Toggle toolbar
             isExpanded = !isExpanded;
@@ -799,7 +821,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       };
 
       const handleMouseDownWrapper = function(e) {
-        if (e.target === logoImg || logoImg.contains(e.target)) {
+        if (e.target === logoImg || e.target === logoContainer || logoContainer.contains(e.target)) {
           handleLogoMouseDown(e);
         }
       };
@@ -815,13 +837,12 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         document.removeEventListener("mouseup", handleMouseUp);
       };
 
-      floatingBar.appendChild(logoImg);
+      floatingBar.appendChild(logoContainer);
 
       // Helper function to create button
-      function createButton(id, text, bgColor, hoverColor) {
+      function createButton(id, text, bgColor, hoverColor, icon) {
         const btn = document.createElement("button");
         btn.id = id;
-        btn.textContent = text;
         btn.style.cssText = 
           "padding: 8px 16px;" +
           "background-color: " + bgColor + ";" +
@@ -833,7 +854,22 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           "cursor: pointer;" +
           "box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);" +
           "transition: background-color 0.2s;" +
-          "white-space: nowrap;";
+          "white-space: nowrap;" +
+          "display: flex;" +
+          "align-items: center;" +
+          "gap: 6px;";
+        
+        if (icon) {
+          const iconSpan = document.createElement("span");
+          iconSpan.textContent = icon;
+          iconSpan.style.cssText = "font-size: 16px; line-height: 1;";
+          btn.appendChild(iconSpan);
+        }
+        
+        const textSpan = document.createElement("span");
+        textSpan.textContent = text;
+        btn.appendChild(textSpan);
+        
         btn.addEventListener("mouseenter", function() {
           if (!btn.disabled) {
             btn.style.backgroundColor = hoverColor;
@@ -848,10 +884,15 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       }
 
       // Ghost Writer toggle button
-      const ghostWriterBtn = createButton("qa-agent-ghost-writer-btn", "Ghost Writer", "#6c757d", "#5a6268");
+      const ghostWriterBtn = createButton("qa-agent-ghost-writer-btn", "Ghost Writer", "#6c757d", "#5a6268", "👻");
       ghostWriterBtn.addEventListener("click", function(e) {
         e.stopPropagation();
         e.preventDefault();
+        
+        // Disable if input mode is active
+        if (window.qaAgentInputMode) {
+          return;
+        }
         
         const isActive = window.qaAgentGhostWriterActive;
         if (isActive) {
@@ -860,27 +901,33 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
               console.error("Error deactivating ghost writer:", err);
             });
           }
-          ghostWriterBtn.textContent = "Ghost Writer";
-          ghostWriterBtn.style.backgroundColor = "#6c757d";
         } else {
           if (window.serverActivateGhostWriter) {
             window.serverActivateGhostWriter().catch(function(err) {
               console.error("Error activating ghost writer:", err);
             });
           }
-          ghostWriterBtn.textContent = "Ghost Writer ✓";
-          ghostWriterBtn.style.backgroundColor = "#28a745";
         }
       });
 
       // Update ghost writer button state
       function updateGhostWriterButton() {
         const isActive = window.qaAgentGhostWriterActive;
+        const isInputMode = window.qaAgentInputMode;
+        
+        if (isInputMode) {
+          ghostWriterBtn.disabled = true;
+          ghostWriterBtn.style.opacity = "0.5";
+          ghostWriterBtn.style.cursor = "not-allowed";
+        } else {
+          ghostWriterBtn.disabled = false;
+          ghostWriterBtn.style.opacity = "1";
+          ghostWriterBtn.style.cursor = "pointer";
+        }
+        
         if (isActive) {
-          ghostWriterBtn.textContent = "Ghost Writer ✓";
           ghostWriterBtn.style.backgroundColor = "#28a745";
         } else {
-          ghostWriterBtn.textContent = "Ghost Writer";
           ghostWriterBtn.style.backgroundColor = "#6c757d";
         }
       }
@@ -888,11 +935,16 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       // Monitor ghost writer state changes
       setInterval(updateGhostWriterButton, 500);
 
-      // Detect Form button
-      const detectFormBtn = createButton("qa-agent-detect-btn", "Detect Form", "#007bff", "#0056b3");
+      // Input Mode button (formerly "Detect Form")
+      const detectFormBtn = createButton("qa-agent-detect-btn", "Input Mode", "#007bff", "#0056b3", "✎");
       detectFormBtn.addEventListener("click", function(e) {
         e.stopPropagation();
         e.preventDefault();
+        
+        // Disable if ghost writer is active
+        if (window.qaAgentGhostWriterActive) {
+          return;
+        }
         
         if (window.serverActivateInputMode) {
           window.serverActivateInputMode().catch(function(err) {
@@ -900,6 +952,31 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           });
         }
       });
+      
+      // Update input mode button state
+      function updateInputModeButton() {
+        const isInputMode = window.qaAgentInputMode;
+        const isGhostWriterActive = window.qaAgentGhostWriterActive;
+        
+        if (isGhostWriterActive) {
+          detectFormBtn.disabled = true;
+          detectFormBtn.style.opacity = "0.5";
+          detectFormBtn.style.cursor = "not-allowed";
+        } else {
+          detectFormBtn.disabled = false;
+          detectFormBtn.style.opacity = "1";
+          detectFormBtn.style.cursor = "pointer";
+        }
+        
+        if (isInputMode) {
+          detectFormBtn.style.backgroundColor = "#28a745";
+        } else {
+          detectFormBtn.style.backgroundColor = "#007bff";
+        }
+      }
+      
+      // Monitor input mode state changes
+      setInterval(updateInputModeButton, 500);
 
       // Container for toolbar buttons
       const toolbarButtons = document.createElement("div");
@@ -1004,6 +1081,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       setInterval(function() {
         updateInputModeButtons();
         updateExtractButton();
+        updateInputModeButton();
       }, 500);
 
       // Expose functions to enable extract button

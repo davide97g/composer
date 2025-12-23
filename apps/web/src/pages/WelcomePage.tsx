@@ -6,8 +6,10 @@ import { getWebsites } from "@/lib/storage";
 import { AddWebsiteDialog } from "@/pages/AddWebsiteDialog";
 import { Website } from "@composer/shared";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export const WelcomePage = () => {
+  const navigate = useNavigate();
   const [websites, setWebsites] = useState<Website[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -31,9 +33,14 @@ export const WelcomePage = () => {
               on themes
             </p>
           </div>
-          <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-            Settings
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate("/stats")}>
+              Stats
+            </Button>
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+              Settings
+            </Button>
+          </div>
         </div>
 
         <div className="flex justify-center">

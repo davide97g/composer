@@ -26,7 +26,7 @@ const getApiUrl = async (): Promise<string> => {
       console.error("Failed to get API URL from Electron:", error);
     }
   }
-  
+
   cachedApiUrl = "http://localhost:3001/api";
   return cachedApiUrl;
 };
@@ -51,16 +51,18 @@ export const startAgent = async (
   }
 };
 
-export const getNavigationHistory = async (baseUrl: string): Promise<string[]> => {
+export const getNavigationHistory = async (
+  baseUrl: string
+): Promise<string[]> => {
   try {
     const apiUrl = await getApiUrl();
     const encodedBaseUrl = encodeURIComponent(baseUrl);
     const response = await fetch(`${apiUrl}/navigation/${encodedBaseUrl}`);
-    
+
     if (!response.ok) {
       return [];
     }
-    
+
     const data = await response.json();
     return data.navigationHistory || [];
   } catch {
@@ -72,11 +74,11 @@ export const getAvailableModels = async (): Promise<string[]> => {
   try {
     const apiUrl = await getApiUrl();
     const response = await fetch(`${apiUrl}/models`);
-    
+
     if (!response.ok) {
       return [];
     }
-    
+
     const data = await response.json();
     return data.models || [];
   } catch {
@@ -109,11 +111,11 @@ export const getGenerations = async (baseUrl: string): Promise<any[]> => {
     const apiUrl = await getApiUrl();
     const encodedBaseUrl = encodeURIComponent(baseUrl);
     const response = await fetch(`${apiUrl}/generations/${encodedBaseUrl}`);
-    
+
     if (!response.ok) {
       return [];
     }
-    
+
     const data = await response.json();
     return data.generations || [];
   } catch {
@@ -147,7 +149,7 @@ export const syncTabUsageFromAgent = async (): Promise<void> => {
   try {
     const apiUrl = await getApiUrl();
     const response = await fetch(`${apiUrl}/tab-usage`);
-    
+
     if (response.ok) {
       const data = await response.json();
       if (data.timestamps && Array.isArray(data.timestamps)) {
@@ -162,3 +164,44 @@ export const syncTabUsageFromAgent = async (): Promise<void> => {
   }
 };
 
+export const syncHintsReceivedFromAgent = async (): Promise<void> => {
+  try {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/hints-received`);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.entries && Array.isArray(data.entries)) {
+        // Import here to avoid circular dependency
+        const { syncHintsReceived } = await import("./hintsReceivedStorage");
+        syncHintsReceived(data.entries);
+      }
+    }
+  } catch (error) {
+    console.error("Failed to sync hints received from agent:", error);
+    // Don't throw - syncing is non-critical
+  }
+};
+
+export const trackHintReceived = async (baseUrl: string): Promise<void> => {
+  try {
+    const apiUrl = await getApiUrl();
+    const response = await fetch(`${apiUrl}/hints-received`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ baseUrl }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to track hint received:", response.statusText);
+    } else {
+      // Sync hints received from agent after tracking
+      await syncHintsReceivedFromAgent();
+    }
+  } catch (error) {
+    console.error("Failed to track hint received:", error);
+    // Don't throw - hint tracking is non-critical
+  }
+};

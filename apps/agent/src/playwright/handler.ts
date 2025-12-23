@@ -33,6 +33,7 @@ import {
   removeProgressList,
   showToast,
 } from "./uiHelpers";
+import { addHintReceived } from "./hintsReceivedStorage";
 
 /**
  * Helper function for consistent logging with timestamps
@@ -1025,6 +1026,15 @@ const setupPageHandlers = async (
             hint,
             totalDuration: `${totalDuration}ms`,
           });
+          
+          // Track hint received if hint was successfully generated
+          if (hint && hint.trim().length > 0) {
+            const baseUrl = getBaseUrl(pageUrl);
+            await addHintReceived(baseUrl).catch((error) => {
+              logError("INPUT_HINT", "Failed to track hint received", error);
+            });
+          }
+          
           return hint;
         } catch (error) {
           const totalDuration = Date.now() - startTime;

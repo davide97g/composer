@@ -12,6 +12,10 @@ import {
 } from "./playwright/handler";
 import { getApiKey, saveSettings } from "./playwright/settingsStorage";
 import { incrementTabUsage, loadTabUsage } from "./playwright/tabUsageStorage";
+import {
+  addHintReceived,
+  loadHintsReceived,
+} from "./playwright/hintsReceivedStorage";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -179,6 +183,30 @@ const createExpressApp = () => {
     } catch (error) {
       console.error("Error getting tab usage:", error);
       res.status(500).json({ error: "Failed to get tab usage" });
+    }
+  });
+
+  app.post("/api/hints-received", async (req, res) => {
+    try {
+      const { baseUrl } = req.body;
+      if (!baseUrl || typeof baseUrl !== "string") {
+        return res.status(400).json({ error: "Invalid baseUrl" });
+      }
+      await addHintReceived(baseUrl);
+      res.json({ success: true, message: "Hint received tracked" });
+    } catch (error) {
+      console.error("Error handling hint received:", error);
+      res.status(500).json({ error: "Failed to handle hint received" });
+    }
+  });
+
+  app.get("/api/hints-received", (req, res) => {
+    try {
+      const entries = loadHintsReceived();
+      res.json({ success: true, entries });
+    } catch (error) {
+      console.error("Error getting hints received:", error);
+      res.status(500).json({ error: "Failed to get hints received" });
     }
   });
 
