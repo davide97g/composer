@@ -52,10 +52,12 @@ export const loadSettings = (): Settings => {
       ghostWriter: {
         ...DEFAULT_SETTINGS.ghostWriter,
         ...settings.ghostWriter,
-        aiLoadingEffect: {
-          ...DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
-          ...(settings.ghostWriter?.aiLoadingEffect || {}),
-        },
+        aiLoadingEffect: settings.ghostWriter?.aiLoadingEffect
+          ? {
+              ...DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
+              ...settings.ghostWriter.aiLoadingEffect,
+            }
+          : DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
       },
     };
   } catch (error) {

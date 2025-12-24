@@ -29,10 +29,12 @@ export const getSettings = (): Settings => {
       ghostWriter: {
         ...DEFAULT_SETTINGS.ghostWriter,
         ...settings.ghostWriter,
-        aiLoadingEffect: {
-          ...DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
-          ...(settings.ghostWriter?.aiLoadingEffect || {}),
-        },
+        aiLoadingEffect: settings.ghostWriter?.aiLoadingEffect
+          ? {
+              ...DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
+              ...settings.ghostWriter.aiLoadingEffect,
+            }
+          : DEFAULT_SETTINGS.ghostWriter.aiLoadingEffect,
       },
     };
   } catch {
