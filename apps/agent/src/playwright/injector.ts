@@ -636,6 +636,15 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       const floatingBar = document.createElement("div");
       floatingBar.id = "qa-agent-floating-bar";
       
+      // Function to update logo border based on expanded state
+      const updateLogoBorder = function() {
+        if (!isExpanded) {
+          logoContainer.style.border = "1px solid #010101";
+        } else {
+          logoContainer.style.border = "none";
+        }
+      };
+
       // Function to update bar style based on expanded state
       const updateBarStyle = function() {
         // Get current position from CSS
@@ -678,6 +687,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
             "user-select: none;" +
             "transition: all 0.2s ease;";
         }
+        updateLogoBorder();
       };
       
       // Set initial style
@@ -729,6 +739,9 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         "cursor: move;";
       logoContainer.appendChild(logoImg);
       
+      // Set initial logo border based on expanded state
+      updateLogoBorder();
+      
       // Make bar draggable via logo
       let isDragging = false;
       let dragStartX = 0;
@@ -738,6 +751,7 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       let clickStartTime = 0;
       let clickStartX = 0;
       let clickStartY = 0;
+      let handleMouseMoveCheck = null;
 
       const handleLogoMouseDown = function(e) {
         // Only handle if clicking on logo container or logo image
@@ -745,12 +759,20 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           return;
         }
         
+        e.preventDefault();
+        e.stopPropagation();
+        
         clickStartTime = Date.now();
         clickStartX = e.clientX;
         clickStartY = e.clientY;
         
+        // Initialize drag start position immediately
+        const computedStyle = window.getComputedStyle(floatingBar);
+        dragStartRight = parseFloat(computedStyle.right) || 0;
+        dragStartTop = parseFloat(computedStyle.top) || 0;
+        
         // Check if this is a drag or click
-        const handleMouseMoveCheck = function(e) {
+        handleMouseMoveCheck = function(e) {
           const moved = Math.abs(e.clientX - clickStartX) > 5 || Math.abs(e.clientY - clickStartY) > 5;
           if (moved) {
             // Start dragging
@@ -758,13 +780,13 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
             dragStartX = e.clientX;
             dragStartY = e.clientY;
             
-            const computedStyle = window.getComputedStyle(floatingBar);
-            dragStartRight = parseFloat(computedStyle.right) || 0;
-            dragStartTop = parseFloat(computedStyle.top) || 0;
-            
             e.preventDefault();
+            e.stopPropagation();
+            
+            // Remove the check listener since we're now dragging
+            document.removeEventListener("mousemove", handleMouseMoveCheck);
+            handleMouseMoveCheck = null;
           }
-          document.removeEventListener("mousemove", handleMouseMoveCheck);
         };
         
         document.addEventListener("mousemove", handleMouseMoveCheck);
@@ -772,6 +794,9 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
 
       const handleMouseMove = function(e) {
         if (!isDragging) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
         
         // Calculate mouse movement delta
         const deltaX = e.clientX - dragStartX;
@@ -803,6 +828,12 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
       };
 
       const handleMouseUp = function(e) {
+        // Clean up the move check listener if it's still active
+        if (handleMouseMoveCheck) {
+          document.removeEventListener("mousemove", handleMouseMoveCheck);
+          handleMouseMoveCheck = null;
+        }
+        
         if (isDragging) {
           isDragging = false;
         } else {
@@ -839,36 +870,44 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
 
       floatingBar.appendChild(logoContainer);
 
-      // Helper function to create button
-      function createButton(id, text, bgColor, hoverColor, icon) {
+      // Helper function to create button (icon-only mode)
+      function createButton(id, text, bgColor, hoverColor, icon, iconOnly) {
+        iconOnly = iconOnly !== undefined ? iconOnly : false;
         const btn = document.createElement("button");
         btn.id = id;
+        btn.title = text; // Use title for tooltip
         btn.style.cssText = 
-          "padding: 8px 16px;" +
+          "padding: " + (iconOnly ? "8px" : "8px 16px") + ";" +
           "background-color: " + bgColor + ";" +
           "color: white;" +
-          "border: none;" +
+          "border: 1px solid " + purpleColor + ";" +
           "border-radius: 6px;" +
           "font-size: 14px;" +
           "font-weight: 600;" +
           "cursor: pointer;" +
           "box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);" +
-          "transition: background-color 0.2s;" +
+          "transition: background-color 0.2s, color 0.2s;" +
           "white-space: nowrap;" +
           "display: flex;" +
           "align-items: center;" +
-          "gap: 6px;";
+          "justify-content: center;" +
+          "gap: " + (iconOnly ? "0" : "6px") + ";" +
+          "min-width: " + (iconOnly ? "32px" : "auto") + ";" +
+          "min-height: " + (iconOnly ? "32px" : "auto") + ";";
         
         if (icon) {
           const iconSpan = document.createElement("span");
           iconSpan.textContent = icon;
-          iconSpan.style.cssText = "font-size: 16px; line-height: 1;";
+          iconSpan.className = "qa-agent-icon";
+          iconSpan.style.cssText = "font-size: 18px; line-height: 1;";
           btn.appendChild(iconSpan);
         }
         
-        const textSpan = document.createElement("span");
-        textSpan.textContent = text;
-        btn.appendChild(textSpan);
+        if (!iconOnly) {
+          const textSpan = document.createElement("span");
+          textSpan.textContent = text;
+          btn.appendChild(textSpan);
+        }
         
         btn.addEventListener("mouseenter", function() {
           if (!btn.disabled) {
@@ -883,8 +922,17 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
         return btn;
       }
 
-      // Ghost Writer toggle button
-      const ghostWriterBtn = createButton("qa-agent-ghost-writer-btn", "Ghost Writer", "#6c757d", "#5a6268", "👻");
+      // Purple color from AILoadingEffects: rgb(168, 85, 247)
+      const purpleColor = "rgb(168, 85, 247)";
+      const purpleColorHover = "rgb(147, 51, 234)";
+      const purpleColorActive = "rgb(126, 34, 206)";
+      
+      // Ghost Writer toggle button (icon only)
+      const ghostWriterBtn = createButton("qa-agent-ghost-writer-btn", "Ghost Writer", "white", purpleColorHover, "👻", true);
+      const ghostWriterIcon = ghostWriterBtn.querySelector(".qa-agent-icon");
+      if (ghostWriterIcon) {
+        ghostWriterIcon.style.color = purpleColor;
+      }
       ghostWriterBtn.addEventListener("click", function(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -925,18 +973,29 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           ghostWriterBtn.style.cursor = "pointer";
         }
         
+        const iconSpan = ghostWriterBtn.querySelector(".qa-agent-icon");
         if (isActive) {
-          ghostWriterBtn.style.backgroundColor = "#28a745";
+          ghostWriterBtn.style.backgroundColor = purpleColor;
+          if (iconSpan) {
+            iconSpan.style.color = "white";
+          }
         } else {
-          ghostWriterBtn.style.backgroundColor = "#6c757d";
+          ghostWriterBtn.style.backgroundColor = "white";
+          if (iconSpan) {
+            iconSpan.style.color = purpleColor;
+          }
         }
       }
 
       // Monitor ghost writer state changes
       setInterval(updateGhostWriterButton, 500);
 
-      // Input Mode button (formerly "Detect Form")
-      const detectFormBtn = createButton("qa-agent-detect-btn", "Input Mode", "#007bff", "#0056b3", "✎");
+      // Input Mode button (icon only)
+      const detectFormBtn = createButton("qa-agent-detect-btn", "Input Mode", "white", purpleColorHover, "✎", true);
+      const detectFormIcon = detectFormBtn.querySelector(".qa-agent-icon");
+      if (detectFormIcon) {
+        detectFormIcon.style.color = purpleColor;
+      }
       detectFormBtn.addEventListener("click", function(e) {
         e.stopPropagation();
         e.preventDefault();
@@ -968,10 +1027,17 @@ export const injectFloatingButton = async (page: Page): Promise<void> => {
           detectFormBtn.style.cursor = "pointer";
         }
         
+        const iconSpan = detectFormBtn.querySelector(".qa-agent-icon");
         if (isInputMode) {
-          detectFormBtn.style.backgroundColor = "#28a745";
+          detectFormBtn.style.backgroundColor = purpleColor;
+          if (iconSpan) {
+            iconSpan.style.color = "white";
+          }
         } else {
-          detectFormBtn.style.backgroundColor = "#007bff";
+          detectFormBtn.style.backgroundColor = "white";
+          if (iconSpan) {
+            iconSpan.style.color = purpleColor;
+          }
         }
       }
       

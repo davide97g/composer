@@ -36,3 +36,231 @@
   }
 }
 
+@layer utilities {
+  /* Shimmer Effect */
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes shimmer-delayed {
+    0% {
+      transform: translateX(-150%);
+    }
+    100% {
+      transform: translateX(150%);
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  .animate-shimmer-delayed {
+    animation: shimmer-delayed 1.8s ease-in-out infinite;
+  }
+
+  .animate-shimmer-slow {
+    animation: shimmer 2.5s ease-in-out infinite;
+  }
+
+  .animate-shimmer-delayed-slow {
+    animation: shimmer-delayed 3s ease-in-out infinite;
+  }
+
+  .animate-shimmer-fast {
+    animation: shimmer 0.8s ease-in-out infinite;
+  }
+
+  .animate-shimmer-delayed-fast {
+    animation: shimmer-delayed 1s ease-in-out infinite;
+  }
+
+  /* Pulsing Glow Effect */
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      opacity: 0.3;
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0.3);
+    }
+    50% {
+      opacity: 0.6;
+      box-shadow: 0 0 8px 2px hsl(var(--primary) / 0.4);
+    }
+  }
+
+  @keyframes pulse-glow-delayed {
+    0%,
+    100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow-delayed {
+    animation: pulse-glow-delayed 2.3s ease-in-out infinite;
+  }
+
+  /* Gradient Wave Effect */
+  @keyframes gradient-wave {
+    0% {
+      transform: translateX(-100%) skewX(-15deg);
+    }
+    100% {
+      transform: translateX(200%) skewX(-15deg);
+    }
+  }
+
+  @keyframes gradient-wave-reverse {
+    0% {
+      transform: translateX(200%) skewX(15deg);
+    }
+    100% {
+      transform: translateX(-100%) skewX(15deg);
+    }
+  }
+
+  .animate-gradient-wave {
+    animation: gradient-wave 2s ease-in-out infinite;
+  }
+
+  .animate-gradient-wave-reverse {
+    animation: gradient-wave-reverse 2.5s ease-in-out infinite;
+  }
+
+  /* Particle Dots Effect */
+  @keyframes particle-dot {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-particle-dot {
+    animation: particle-dot 1.5s ease-in-out infinite;
+  }
+
+  /* Neural Network Effect */
+  @keyframes neural-network {
+    0%,
+    100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  .animate-neural-network {
+    animation: neural-network 2s ease-in-out infinite;
+  }
+
+  /* Typewriter Effect */
+  @keyframes typewriter-dot {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scaleY(0.5);
+    }
+    50% {
+      opacity: 1;
+      transform: scaleY(1);
+    }
+  }
+
+  @keyframes typewriter-sweep {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .animate-typewriter-dot {
+    animation: typewriter-dot 1s ease-in-out infinite;
+  }
+
+  .animate-typewriter-sweep {
+    animation: typewriter-sweep 2s linear infinite;
+  }
+
+  /* Ripple Effect */
+  @keyframes ripple-1 {
+    0% {
+      transform: scale(1);
+      opacity: 0.6;
+    }
+    100% {
+      transform: scale(15);
+      opacity: 0;
+    }
+  }
+
+  @keyframes ripple-2 {
+    0% {
+      transform: scale(1);
+      opacity: 0.4;
+    }
+    100% {
+      transform: scale(20);
+      opacity: 0;
+    }
+  }
+
+  @keyframes ripple-3 {
+    0% {
+      transform: scale(1);
+      opacity: 0.3;
+    }
+    100% {
+      transform: scale(25);
+      opacity: 0;
+    }
+  }
+
+  @keyframes ripple-wave {
+    0%,
+    100% {
+      transform: scaleX(0.5);
+      opacity: 0.3;
+    }
+    50% {
+      transform: scaleX(1);
+      opacity: 0.6;
+    }
+  }
+
+  .animate-ripple-1 {
+    animation: ripple-1 2s ease-out infinite;
+  }
+
+  .animate-ripple-2 {
+    animation: ripple-2 2.2s ease-out infinite;
+    animation-delay: 0.3s;
+  }
+
+  .animate-ripple-3 {
+    animation: ripple-3 2.4s ease-out infinite;
+    animation-delay: 0.6s;
+  }
+
+  .animate-ripple-wave {
+    animation: ripple-wave 2s ease-in-out infinite;
+  }
+}

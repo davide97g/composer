@@ -247,13 +247,28 @@ const findFormContainer = async (
  */
 export const activateGhostWriter = async (
   page: Page,
-  theme: string
+  theme: string,
+  aiLoadingEffectSettings?: {
+    enabled: boolean;
+    shimmerColor: "primary" | "blue" | "purple" | "green" | "orange";
+    shimmerSpeed: "slow" | "normal" | "fast";
+    shimmerIntensity: "low" | "medium" | "high";
+  }
 ): Promise<void> => {
   const startTime = Date.now();
   log("GHOST_WRITER", "=== Ghost Writer Activation Started ===", {
     pageUrl: page.url(),
     theme,
   });
+
+  // Prepare AI Loading Effect settings
+  const defaultAISettings = {
+    enabled: true,
+    shimmerColor: "purple" as const,
+    shimmerSpeed: "slow" as const,
+    shimmerIntensity: "low" as const,
+  };
+  const aiSettings = aiLoadingEffectSettings || defaultAISettings;
 
   const ghostWriterCode = `
     (function() {
@@ -321,29 +336,67 @@ export const activateGhostWriter = async (
         }
       }
 
-      // Show skeleton loading effect on input
-      function showSkeletonLoading(element) {
-        // Remove existing skeleton if present
-        removeSkeletonLoading(element);
+      // AI Loading Effect settings (from props or defaults)
+      const aiEffectSettings = ${JSON.stringify(aiSettings)};
+      
+      // Intensity mapping (opacity values as decimals)
+      const intensityMap = {
+        low: { main: 0.1, secondary: 0.05 },
+        medium: { main: 0.15, secondary: 0.08 },
+        high: { main: 0.25, secondary: 0.12 },
+      };
 
-        // Add skeleton overlay
-        const skeletonOverlay = document.createElement("div");
-        skeletonOverlay.className = "qa-agent-ghost-skeleton";
-        skeletonOverlay.style.cssText = 
-          "position: absolute;" +
-          "top: 0;" +
-          "left: 0;" +
-          "width: 100%;" +
-          "height: 100%;" +
-          "background: linear-gradient(90deg, " +
-          "rgba(0, 123, 255, 0.05) 0%, " +
-          "rgba(0, 123, 255, 0.15) 50%, " +
-          "rgba(0, 123, 255, 0.05) 100%);" +
-          "background-size: 200% 100%;" +
-          "animation: qa-agent-ghost-skeleton-shimmer 1.5s ease-in-out infinite;" +
-          "pointer-events: none;" +
-          "z-index: 1;" +
-          "border-radius: inherit;";
+      // Speed mapping (animation class names)
+      const speedClasses = {
+        slow: {
+          main: "qa-agent-shimmer-slow",
+          delayed: "qa-agent-shimmer-delayed-slow",
+        },
+        normal: { main: "qa-agent-shimmer", delayed: "qa-agent-shimmer-delayed" },
+        fast: {
+          main: "qa-agent-shimmer-fast",
+          delayed: "qa-agent-shimmer-delayed-fast",
+        },
+      };
+
+      // Get color RGB values
+      function getColorRGB(colorName) {
+        if (colorName === "primary") {
+          return "hsl(var(--primary))";
+        }
+        const colorMap = {
+          blue: "rgb(59, 130, 246)",
+          purple: "rgb(168, 85, 247)",
+          green: "rgb(34, 197, 94)",
+          orange: "rgb(249, 115, 22)",
+        };
+        return colorMap[colorName] || colorMap.blue;
+      }
+
+      // Helper to create rgba color
+      function createRGBA(rgbString, opacity) {
+        if (rgbString.includes("hsl")) {
+          return rgbString.replace(")", " / " + (opacity * 100) + "%)");
+        }
+        const matches = rgbString.match(/\\d+/g);
+        if (matches && matches.length >= 3) {
+          return "rgba(" + matches[0] + ", " + matches[1] + ", " + matches[2] + ", " + opacity + ")";
+        }
+        return rgbString;
+      }
+
+      // Show AI Loading Effect on input
+      function showAILoadingEffect(element) {
+        if (!aiEffectSettings.enabled) return;
+        
+        // Remove existing effect if present
+        removeAILoadingEffect(element);
+
+        const intensityValues = intensityMap[aiEffectSettings.shimmerIntensity || "low"];
+        const speedClass = speedClasses[aiEffectSettings.shimmerSpeed || "slow"];
+        const baseColor = getColorRGB(aiEffectSettings.shimmerColor || "purple");
+        const mainColor = createRGBA(baseColor, intensityValues.main);
+        const secondaryColor = createRGBA(baseColor, intensityValues.secondary);
 
         // Make input container relative if not already
         const computedStyle = window.getComputedStyle(element);
@@ -351,31 +404,160 @@ export const activateGhostWriter = async (
           element.style.position = "relative";
         }
 
-        element.appendChild(skeletonOverlay);
-        element.setAttribute("data-ghost-skeleton", "true");
-      }
-
-      // Remove skeleton loading effect from input
-      function removeSkeletonLoading(element) {
-        const skeleton = element.querySelector(".qa-agent-ghost-skeleton");
-        if (skeleton) {
-          skeleton.remove();
+        // Input elements don't render children, so we need to position the effect as a sibling
+        // or use fixed positioning. We'll use fixed positioning based on the input's bounding box.
+        const rect = element.getBoundingClientRect();
+        const inputId = "qa-agent-ai-effect-" + (element.id || element.name || Date.now());
+        
+        // Remove existing effect if present
+        const existingEffect = document.getElementById(inputId);
+        if (existingEffect) {
+          existingEffect.remove();
         }
-        element.removeAttribute("data-ghost-skeleton");
+
+        // Create effect overlay positioned fixed to match input position
+        const effectOverlay = document.createElement("div");
+        effectOverlay.id = inputId;
+        effectOverlay.className = "qa-agent-ai-loading-effect";
+        effectOverlay.setAttribute("data-input-selector", getInputSelector(element));
+        effectOverlay.style.cssText = 
+          "position: fixed;" +
+          "top: " + rect.top + "px;" +
+          "left: " + rect.left + "px;" +
+          "width: " + rect.width + "px;" +
+          "height: " + rect.height + "px;" +
+          "pointer-events: none;" +
+          "z-index: 999995;" +
+          "border-radius: inherit;" +
+          "overflow: hidden;" +
+          "opacity: 1;" +
+          "visibility: visible;";
+
+        // Get border radius from input if available
+        const borderRadius = window.getComputedStyle(element).borderRadius;
+        if (borderRadius) {
+          effectOverlay.style.borderRadius = borderRadius;
+        }
+
+        // Base greyish gradient background
+        const baseBg = document.createElement("div");
+        baseBg.style.cssText = 
+          "position: absolute;" +
+          "top: 0;" +
+          "left: 0;" +
+          "right: 0;" +
+          "bottom: 0;" +
+          "background: linear-gradient(to right, rgba(0, 0, 0, 0.03), rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.03));";
+        effectOverlay.appendChild(baseBg);
+
+        // Animated shimmer layer 1
+        const shimmer1 = document.createElement("div");
+        shimmer1.className = speedClass.main;
+        shimmer1.style.cssText = 
+          "position: absolute;" +
+          "top: 0;" +
+          "left: 0;" +
+          "right: 0;" +
+          "bottom: 0;" +
+          "background: linear-gradient(to right, transparent, " + mainColor + ", transparent);";
+        effectOverlay.appendChild(shimmer1);
+
+        // Animated shimmer layer 2 (delayed)
+        const shimmer2 = document.createElement("div");
+        shimmer2.className = speedClass.delayed;
+        shimmer2.style.cssText = 
+          "position: absolute;" +
+          "top: 0;" +
+          "left: 0;" +
+          "right: 0;" +
+          "bottom: 0;" +
+          "background: linear-gradient(to right, " + secondaryColor + ", " + mainColor + ", " + secondaryColor + ");";
+        effectOverlay.appendChild(shimmer2);
+
+        document.body.appendChild(effectOverlay);
+        element.setAttribute("data-ai-loading-effect", inputId);
+        
+        // Update position on scroll/resize
+        const updatePosition = function() {
+          const currentRect = element.getBoundingClientRect();
+          effectOverlay.style.top = currentRect.top + "px";
+          effectOverlay.style.left = currentRect.left + "px";
+          effectOverlay.style.width = currentRect.width + "px";
+          effectOverlay.style.height = currentRect.height + "px";
+        };
+        
+        window.addEventListener("scroll", updatePosition, true);
+        window.addEventListener("resize", updatePosition);
+        
+        // Store cleanup function
+        if (!window.qaAgentAILoadingEffects) {
+          window.qaAgentAILoadingEffects = new Map();
+        }
+        window.qaAgentAILoadingEffects.set(inputId, {
+          element: effectOverlay,
+          updatePosition: updatePosition
+        });
       }
 
-      // Add skeleton animation styles if not present
-      if (!document.getElementById("qa-agent-ghost-skeleton-styles")) {
+      // Remove AI Loading Effect from input
+      function removeAILoadingEffect(element) {
+        const effectId = element.getAttribute("data-ai-loading-effect");
+        if (effectId) {
+          const effect = document.getElementById(effectId);
+          if (effect) {
+            effect.remove();
+          }
+          
+          // Clean up event listeners
+          if (window.qaAgentAILoadingEffects && window.qaAgentAILoadingEffects.has(effectId)) {
+            const effectData = window.qaAgentAILoadingEffects.get(effectId);
+            window.removeEventListener("scroll", effectData.updatePosition, true);
+            window.removeEventListener("resize", effectData.updatePosition);
+            window.qaAgentAILoadingEffects.delete(effectId);
+          }
+        } else {
+          // Fallback: try to find by selector
+          const selector = getInputSelector(element);
+          const effects = document.querySelectorAll(".qa-agent-ai-loading-effect");
+          effects.forEach(function(effect) {
+            if (effect.getAttribute("data-input-selector") === selector) {
+              effect.remove();
+            }
+          });
+        }
+        element.removeAttribute("data-ai-loading-effect");
+      }
+
+      // Add shimmer animation styles if not present
+      if (!document.getElementById("qa-agent-shimmer-styles")) {
         const style = document.createElement("style");
-        style.id = "qa-agent-ghost-skeleton-styles";
+        style.id = "qa-agent-shimmer-styles";
         style.textContent = 
-          "@keyframes qa-agent-ghost-skeleton-shimmer {" +
-          "  0% {" +
-          "    background-position: -200% 0;" +
-          "  }" +
-          "  100% {" +
-          "    background-position: 200% 0;" +
-          "  }" +
+          "@keyframes qa-agent-shimmer {" +
+          "  0% { transform: translateX(-100%); }" +
+          "  100% { transform: translateX(100%); }" +
+          "}" +
+          "@keyframes qa-agent-shimmer-delayed {" +
+          "  0% { transform: translateX(-150%); }" +
+          "  100% { transform: translateX(150%); }" +
+          "}" +
+          ".qa-agent-shimmer {" +
+          "  animation: qa-agent-shimmer 1.5s ease-in-out infinite;" +
+          "}" +
+          ".qa-agent-shimmer-delayed {" +
+          "  animation: qa-agent-shimmer-delayed 1.8s ease-in-out infinite;" +
+          "}" +
+          ".qa-agent-shimmer-slow {" +
+          "  animation: qa-agent-shimmer 2.5s ease-in-out infinite;" +
+          "}" +
+          ".qa-agent-shimmer-delayed-slow {" +
+          "  animation: qa-agent-shimmer-delayed 3s ease-in-out infinite;" +
+          "}" +
+          ".qa-agent-shimmer-fast {" +
+          "  animation: qa-agent-shimmer 0.8s ease-in-out infinite;" +
+          "}" +
+          ".qa-agent-shimmer-delayed-fast {" +
+          "  animation: qa-agent-shimmer-delayed 1s ease-in-out infinite;" +
           "}";
         document.head.appendChild(style);
       }
@@ -426,7 +608,7 @@ export const activateGhostWriter = async (
             const prevElement = document.querySelector(currentInputSelector);
             if (prevElement) {
               restoreOriginalPlaceholder(prevElement);
-              removeSkeletonLoading(prevElement);
+              removeAILoadingEffect(prevElement);
             }
           } catch (e) {
             // Ignore selector errors
@@ -447,8 +629,8 @@ export const activateGhostWriter = async (
 
         hintGenerationInProgress = true;
         
-        // Show skeleton loading effect
-        showSkeletonLoading(target);
+        // Show AI Loading Effect
+        showAILoadingEffect(target);
         
         try {
           // Extract input context
@@ -530,8 +712,8 @@ export const activateGhostWriter = async (
         } catch (error) {
           console.error("[GHOST_WRITER] Error generating hint:", error);
         } finally {
-          // Remove skeleton loading effect
-          removeSkeletonLoading(target);
+          // Remove AI Loading Effect
+          removeAILoadingEffect(target);
           hintGenerationInProgress = false;
         }
       }
@@ -666,13 +848,13 @@ export const activateGhostWriter = async (
           }
           if (element) {
             restoreOriginalPlaceholder(element);
-            removeSkeletonLoading(element);
+            removeAILoadingEffect(element);
           }
         });
 
-        // Also remove skeletons from any elements that might have them
-        document.querySelectorAll('[data-ghost-skeleton="true"]').forEach(function(element) {
-          removeSkeletonLoading(element);
+        // Also remove AI Loading Effects from any elements that might have them
+        document.querySelectorAll('[data-ai-loading-effect="true"]').forEach(function(element) {
+          removeAILoadingEffect(element);
         });
 
         document.removeEventListener("focusin", handleFocus, true);

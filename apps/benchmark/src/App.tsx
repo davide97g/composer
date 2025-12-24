@@ -3,6 +3,7 @@ import { SearchForm } from "@/components/forms/SearchForm";
 import { TextForm } from "@/components/forms/TextForm";
 import { UnusualForm } from "@/components/forms/UnusualForm";
 import { UserDataForm } from "@/components/forms/UserDataForm";
+import { AIEffectsShowcase } from "@/components/forms/AIEffectsShowcase";
 import {
   Card,
   CardDescription,
@@ -32,6 +33,7 @@ const App = () => {
             <Tab value="unusual">Unusual Inputs</Tab>
             <Tab value="user">User Data</Tab>
             <Tab value="multistep">Multi-Step</Tab>
+            <Tab value="ai-effects">AI Effects</Tab>
           </TabList>
 
           <TabPanels>
@@ -49,6 +51,9 @@ const App = () => {
             </TabPanel>
             <TabPanel value="multistep">
               <MultiStepForm />
+            </TabPanel>
+            <TabPanel value="ai-effects">
+              <AIEffectsShowcase />
             </TabPanel>
           </TabPanels>
         </Tabs>

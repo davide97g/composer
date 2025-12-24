@@ -36,6 +36,7 @@ export interface Website {
   navigationHistory: string[];
   customPrompt?: string;
   customGhostWriterPrompt?: string;
+  customAILoadingEffect?: AILoadingEffectSettings;
   generations?: Generation[];
 }
 
@@ -59,7 +60,8 @@ export interface ThemeMetadata {
 export const THEME_METADATA: Record<Theme, ThemeMetadata> = {
   [Theme.STAR_WARS_HERO]: {
     title: "Star Wars Hero",
-    description: "Generate data inspired by characters from a galaxy far, far away",
+    description:
+      "Generate data inspired by characters from a galaxy far, far away",
   },
   [Theme.MARVEL_SUPERHERO]: {
     title: "Marvel Superhero",
@@ -96,8 +98,20 @@ export interface FillerSettings {
   timeout: number;
 }
 
+export type ShimmerColor = "primary" | "blue" | "purple" | "green" | "orange";
+export type ShimmerSpeed = "slow" | "normal" | "fast";
+export type ShimmerIntensity = "low" | "medium" | "high";
+
+export interface AILoadingEffectSettings {
+  enabled: boolean;
+  shimmerColor: ShimmerColor;
+  shimmerSpeed: ShimmerSpeed;
+  shimmerIntensity: ShimmerIntensity;
+}
+
 export interface GhostWriterSettings {
   prompt: string;
+  aiLoadingEffect?: AILoadingEffectSettings;
 }
 
 export interface Settings {
@@ -160,6 +174,11 @@ Generate a realistic EXAMPLE VALUE (not placeholder text) that:
 - For number fields: provide actual numbers
 
 IMPORTANT: Return ONLY the example value, nothing else. No explanations, no JSON, no quotes, just the value string that the user would actually type.`,
+    aiLoadingEffect: {
+      enabled: true,
+      shimmerColor: "purple",
+      shimmerSpeed: "slow",
+      shimmerIntensity: "low",
+    },
   },
 };
-

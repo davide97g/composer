@@ -1,10 +1,17 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { useState } from "react";
+import { AILoadingEffect } from "./AILoadingEffects";
 
 const SearchForm = () => {
   const [formData, setFormData] = useState({
@@ -23,6 +30,7 @@ const SearchForm = () => {
     },
     showAdvanced: false,
   });
+  const [isMainSearchFocused, setIsMainSearchFocused] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -31,9 +39,7 @@ const SearchForm = () => {
   const handleCheckboxChange = (tag: string, checked: boolean) => {
     setFormData((prev) => ({
       ...prev,
-      tags: checked
-        ? [...prev.tags, tag]
-        : prev.tags.filter((t) => t !== tag),
+      tags: checked ? [...prev.tags, tag] : prev.tags.filter((t) => t !== tag),
     }));
   };
 
@@ -47,7 +53,8 @@ const SearchForm = () => {
       <CardHeader>
         <CardTitle>Search-Heavy Form</CardTitle>
         <CardDescription>
-          Multiple search inputs with autocomplete, filters, and advanced options
+          Multiple search inputs with autocomplete, filters, and advanced
+          options
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -55,13 +62,21 @@ const SearchForm = () => {
           {/* Main Search */}
           <div className="space-y-2">
             <Label htmlFor="mainSearch">Main Search</Label>
-            <Input
-              id="mainSearch"
-              type="search"
-              placeholder="Search for anything..."
-              value={formData.mainSearch}
-              onChange={(e) => handleInputChange("mainSearch", e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="mainSearch"
+                type="search"
+                placeholder="Search for anything..."
+                value={formData.mainSearch}
+                onChange={(e) =>
+                  handleInputChange("mainSearch", e.target.value)
+                }
+                onFocus={() => setIsMainSearchFocused(true)}
+                onBlur={() => setIsMainSearchFocused(false)}
+                className="relative z-10"
+              />
+              <AILoadingEffect type="shimmer" isActive={isMainSearchFocused} />
+            </div>
           </div>
 
           {/* Product Search */}
@@ -72,7 +87,9 @@ const SearchForm = () => {
               type="search"
               placeholder="Search products..."
               value={formData.productSearch}
-              onChange={(e) => handleInputChange("productSearch", e.target.value)}
+              onChange={(e) =>
+                handleInputChange("productSearch", e.target.value)
+              }
             />
           </div>
 
@@ -84,7 +101,9 @@ const SearchForm = () => {
               type="search"
               placeholder="Enter location..."
               value={formData.locationSearch}
-              onChange={(e) => handleInputChange("locationSearch", e.target.value)}
+              onChange={(e) =>
+                handleInputChange("locationSearch", e.target.value)
+              }
             />
           </div>
 
@@ -95,7 +114,9 @@ const SearchForm = () => {
               <Select
                 id="categoryFilter"
                 value={formData.categoryFilter}
-                onChange={(e) => handleInputChange("categoryFilter", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("categoryFilter", e.target.value)
+                }
               >
                 <option value="">All Categories</option>
                 <option value="electronics">Electronics</option>
@@ -126,7 +147,9 @@ const SearchForm = () => {
               <Select
                 id="locationFilter"
                 value={formData.locationFilter}
-                onChange={(e) => handleInputChange("locationFilter", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("locationFilter", e.target.value)
+                }
               >
                 <option value="">All Locations</option>
                 <option value="us">United States</option>
@@ -162,7 +185,9 @@ const SearchForm = () => {
                 <Checkbox
                   id="tag-new"
                   checked={formData.tags.includes("new")}
-                  onChange={(e) => handleCheckboxChange("new", e.target.checked)}
+                  onChange={(e) =>
+                    handleCheckboxChange("new", e.target.checked)
+                  }
                 />
                 <Label htmlFor="tag-new">New</Label>
               </div>
@@ -170,7 +195,9 @@ const SearchForm = () => {
                 <Checkbox
                   id="tag-featured"
                   checked={formData.tags.includes("featured")}
-                  onChange={(e) => handleCheckboxChange("featured", e.target.checked)}
+                  onChange={(e) =>
+                    handleCheckboxChange("featured", e.target.checked)
+                  }
                 />
                 <Label htmlFor="tag-featured">Featured</Label>
               </div>
@@ -178,7 +205,9 @@ const SearchForm = () => {
                 <Checkbox
                   id="tag-sale"
                   checked={formData.tags.includes("sale")}
-                  onChange={(e) => handleCheckboxChange("sale", e.target.checked)}
+                  onChange={(e) =>
+                    handleCheckboxChange("sale", e.target.checked)
+                  }
                 />
                 <Label htmlFor="tag-sale">On Sale</Label>
               </div>
@@ -186,7 +215,9 @@ const SearchForm = () => {
                 <Checkbox
                   id="tag-premium"
                   checked={formData.tags.includes("premium")}
-                  onChange={(e) => handleCheckboxChange("premium", e.target.checked)}
+                  onChange={(e) =>
+                    handleCheckboxChange("premium", e.target.checked)
+                  }
                 />
                 <Label htmlFor="tag-premium">Premium</Label>
               </div>
@@ -198,7 +229,12 @@ const SearchForm = () => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setFormData((prev) => ({ ...prev, showAdvanced: !prev.showAdvanced }))}
+              onClick={() =>
+                setFormData((prev) => ({
+                  ...prev,
+                  showAdvanced: !prev.showAdvanced,
+                }))
+              }
             >
               {formData.showAdvanced ? "Hide" : "Show"} Advanced Filters
             </Button>
@@ -215,7 +251,10 @@ const SearchForm = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      advancedFilters: { ...prev.advancedFilters, rating: e.target.value },
+                      advancedFilters: {
+                        ...prev.advancedFilters,
+                        rating: e.target.value,
+                      },
                     }))
                   }
                 >
@@ -236,7 +275,10 @@ const SearchForm = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      advancedFilters: { ...prev.advancedFilters, availability: e.target.value },
+                      advancedFilters: {
+                        ...prev.advancedFilters,
+                        availability: e.target.value,
+                      },
                     }))
                   }
                 >
@@ -255,7 +297,10 @@ const SearchForm = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({
                       ...prev,
-                      advancedFilters: { ...prev.advancedFilters, sortBy: e.target.value },
+                      advancedFilters: {
+                        ...prev.advancedFilters,
+                        sortBy: e.target.value,
+                      },
                     }))
                   }
                 >
@@ -277,4 +322,3 @@ const SearchForm = () => {
 };
 
 export { SearchForm };
-

@@ -26,6 +26,7 @@ import {
   loadNavigationHistory,
   saveNavigationHistory,
 } from "./navigationStorage";
+import { loadSettings } from "./settingsStorage";
 import {
   addGlowingEffect,
   createProgressList,
@@ -1070,7 +1071,16 @@ const setupPageHandlers = async (
           isInputModeActive = false;
         }
 
-        await activateGhostWriter(currentPage, currentTheme);
+        // Load settings to get AI Loading Effect configuration
+        const settings = loadSettings();
+        const aiLoadingEffectSettings = settings.ghostWriter.aiLoadingEffect || {
+          enabled: true,
+          shimmerColor: "purple",
+          shimmerSpeed: "slow",
+          shimmerIntensity: "low",
+        };
+
+        await activateGhostWriter(currentPage, currentTheme, aiLoadingEffectSettings);
         isGhostWriterActive = true;
 
         const totalDuration = Date.now() - startTime;
